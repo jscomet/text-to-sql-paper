@@ -1,0 +1,133 @@
+﻿# ICDE2026 data pipeline config
+
+# 1) Set dataset roots and output dirs
+paths:
+  # Root folder for BIRD datasets (contains train/ and dev_* subfolders)
+  dataset_root: "./data/bird"  # change to your path
+
+  # Central working directory for generated artifacts
+  work_dir: "./outputs"
+
+  # Train split locations
+  train:
+    dataset_json: "${paths.dataset_root}/train/train.json"
+    tables_json: "${paths.dataset_root}/train/train_tables.json"
+    db_dir: "${paths.dataset_root}/train/train_databases"
+    db_index_dir: "${paths.dataset_root}/train/db_contents_index"
+
+  # Dev split locations (example uses dev_20240627 structure)
+  dev:
+    dataset_json: "${paths.dataset_root}/dev_20240627/dev.json"
+    tables_json: "${paths.dataset_root}/dev_20240627/dev_tables.json"
+    db_dir: "${paths.dataset_root}/dev_20240627/dev_databases"
+    db_index_dir: "${paths.dataset_root}/dev_20240627/db_contents_index"
+
+
+# 2) Optional: build BM25 content index with Pyserini for each DB
+bm25_index:
+  enabled: false
+  threads: 16
+
+
+# 3) Prepare SFT-ready JSONs with evidence and schema
+prepare_sft:
+  enabled: false
+  use_evidence: true
+  train_out: "${paths.dataset_root}/train/sft_bird_with_evidence_train_text2sql.json"
+  dev_out: "${paths.dataset_root}/sft_bird_with_evidence_dev_text2sql.json"
+  # Source tags used inside the script for labeling
+  train_source: "bird-train"
+  dev_source: "bird_dev_20240627"
+
+
+# 4) Discover extra foreign keys via MinHash and inject into schema text
+minhash:
+  enabled: true
+  workers: 32
+  out_train_dir: "${paths.work_dir}/candidate_result_train_bird"
+  out_dev_dir: "${paths.work_dir}/candidate_result_dev_bird"
+
+
+# 5) Convert to Create Table style (create_format) JSONs
+construct_schema:
+  enabled: true
+  train_out: "${paths.work_dir}/bird_train_sft_data.json"
+  dev_out: "${paths.work_dir}/bird_dev.json"
+  inject_train_similarities: true
+
+
+# 6) Inference generation with vLLM (Generator and Corrector)
+inference:
+  enabled: false  # run AFTER training; set to true when you have a trained/merged model
+  model_path: "/path/to/DatA-SQL-trained"  # set to your trained/merged model path
+  tensor_parallel_size: 1
+  n: 8
+  temperature: 0.8
+  output_format: "sql"
+  metadata: null       # optional: a JSON with db_id -> natural language schema
+  mix_data: null       # optional: backup dataset to avoid 6144-token overflow
+
+  # Generator pass
+  generator:
+    prompt_template: "infer"          # default for final inference; maps via templates section
+    input_json: "${construct_schema.dev_out}"
+    output_json: "${paths.work_dir}/generator_out.json"
+
+  # Corrector pass
+  corrector:
+    enabled: false
+    prompt_template: "sql_correct_prompt"      # requires errors + previous SQL in input
+    input_json: "${paths.work_dir}/corrector_input.json"
+    output_json: "${paths.work_dir}/corrector_out.json"
+
+
+# 7) Categorize predictions and create SFT data
+categorize_sft:
+  enabled: false
+  # Input: predictions from the Generator pass
+  predictions_json: "${inference.generator.output_json}"
+
+  # Outputs: partition by correctness
+  correct_json: "${paths.work_dir}/correct_data.json"
+  error_json: "${paths.work_dir}/error_data.json"
+  mismatch_json: "${paths.work_dir}/mismatch_data.json"
+
+  # Compose SFT prompts
+  prompt_source_json: "${construct_schema.dev_out}"
+  sft_correct_json: "${paths.work_dir}/sft_data_Correct.json"
+  sft_alpaca_json: "${paths.work_dir}/sft_data_Alpaca.json"
+
+  # Optional: length filter on prompts (token count)
+  length_filter:
+    enabled: true
+    max_prompt_tokens: 6144
+    tokenizer_path: "${inference.model_path}"
+    out_correct_json: "${paths.work_dir}/sft_data_Correct_len<=6144.json"
+    out_alpaca_json: "${paths.work_dir}/sft_data_Alpaca_len<=6144.json"
+
+
+# 8) Evaluation
+evaluation:
+  enabled: false
+  mode: "major_voting"   # [greedy_search, major_voting]
+  gold_json: "${paths.dev.dataset_json}"
+  db_dir: "${paths.dev.db_dir}"
+  pred_json: "${inference.generator.output_json}"
+
+
+# 9) Sync dataset to LLaMAFactory data dir (copy JSON)
+training_sync:
+  enabled: true
+  prefer_filtered: true
+  # Source candidates
+  src_default: "${categorize_sft.sft_alpaca_json}"
+  src_filtered: "${categorize_sft.length_filter.out_alpaca_json}"
+  # Destination used by train/config.yaml (dataset_dir + dataset name)
+  dest_dir: "data/correct_bird_trainset"
+  dest_file: "${training_sync.dest_dir}/train.json"
+
+# DatA-SQL prompt templates indirection
+templates:
+  gen: "gen"
+  infer: "infer"
+

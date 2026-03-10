@@ -1,0 +1,62 @@
+﻿# Final inference pipeline config (Stage 2)
+
+paths:
+  dataset_root: "./data/bird"  # change to your path
+  work_dir: "./outputs_infer"
+
+  dev:
+    dataset_json: "${paths.dataset_root}/dev_20240627/dev.json"
+    db_dir: "${paths.dataset_root}/dev_20240627/dev_databases"
+
+bm25_index:
+  enabled: false
+
+prepare_sft:
+  enabled: false
+
+minhash:
+  enabled: false
+
+construct_schema:
+  enabled: true  # rebuild or reuse create_format as needed
+  train_out: "${paths.work_dir}/bird_train_sft_data.json"
+  dev_out: "${paths.work_dir}/bird_dev.json"
+  inject_train_similarities: false
+
+inference:
+  enabled: true  # use your trained/merged model
+  model_path: "/path/to/DatA-SQL-trained"  # set to your trained model
+  tensor_parallel_size: 1
+  n: 8
+  temperature: 0.8
+  output_format: "sql"
+  metadata: null
+  mix_data: null
+  generator:
+    prompt_template: "infer"
+    input_json: "${construct_schema.dev_out}"
+    output_json: "${paths.work_dir}/generator_out.json"
+  corrector:
+    enabled: false
+    prompt_template: "sql_correct_prompt"
+    input_json: "${paths.work_dir}/corrector_input.json"
+    output_json: "${paths.work_dir}/corrector_out.json"
+
+categorize_sft:
+  enabled: false
+
+evaluation:
+  enabled: true
+  mode: "major_voting"
+  gold_json: "${paths.dev.dataset_json}"
+  db_dir: "${paths.dev.db_dir}"
+  pred_json: "${inference.generator.output_json}"
+
+training_sync:
+  enabled: false
+
+# DatA-SQL prompt templates indirection
+templates:
+  gen: "gen"
+  infer: "infer"
+
