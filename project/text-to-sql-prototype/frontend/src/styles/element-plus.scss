@@ -1,0 +1,245 @@
+// Element Plus 主题覆盖
+// 覆盖 Element Plus 默认样式以匹配项目设计
+
+// 主色调覆盖
+:root {
+  --el-color-primary: var(--primary-color);
+  --el-color-primary-light-3: #79bbff;
+  --el-color-primary-light-5: #a0cfff;
+  --el-color-primary-light-7: #c6e2ff;
+  --el-color-primary-light-8: #d9ecff;
+  --el-color-primary-light-9: #ecf5ff;
+  --el-color-primary-dark-2: #337ecc;
+
+  --el-color-success: var(--success-color);
+  --el-color-warning: var(--warning-color);
+  --el-color-danger: var(--danger-color);
+  --el-color-info: var(--info-color);
+
+  // 文字颜色
+  --el-text-color-primary: var(--text-primary);
+  --el-text-color-regular: var(--text-regular);
+  --el-text-color-secondary: var(--text-secondary);
+  --el-text-color-placeholder: var(--text-placeholder);
+
+  // 边框颜色
+  --el-border-color: var(--border-color);
+  --el-border-color-light: var(--border-light);
+  --el-border-color-lighter: var(--border-lighter);
+  --el-border-color-extra-light: var(--border-extra-light);
+
+  // 背景颜色
+  --el-bg-color: #ffffff;
+  --el-bg-color-page: var(--bg-color);
+  --el-bg-color-overlay: #ffffff;
+
+  // 填充颜色
+  --el-fill-color: #f0f2f5;
+  --el-fill-color-light: #f5f7fa;
+  --el-fill-color-lighter: #fafafa;
+  --el-fill-color-extra-light: #fafcff;
+  --el-fill-color-dark: #ebedf0;
+  --el-fill-color-darker: #e6e8eb;
+  --el-fill-color-blank: #ffffff;
+}
+
+// 按钮样式优化
+.el-button {
+  &--primary {
+    &:hover {
+      opacity: 0.9;
+    }
+  }
+}
+
+// 表单样式优化
+.el-form {
+  .el-form-item {
+    &__label {
+      font-weight: 500;
+    }
+  }
+}
+
+// 输入框样式优化
+.el-input {
+  &__wrapper {
+    box-shadow: 0 0 0 1px var(--el-border-color) inset;
+
+    &:hover {
+      box-shadow: 0 0 0 1px var(--el-border-color-hover) inset;
+    }
+
+    &.is-focus {
+      box-shadow: 0 0 0 1px var(--el-color-primary) inset;
+    }
+  }
+}
+
+// 表格样式优化
+.el-table {
+  --el-table-header-bg-color: var(--el-fill-color-light);
+  --el-table-header-text-color: var(--text-primary);
+
+  th.el-table__cell {
+    font-weight: 600;
+    background-color: var(--el-fill-color-light);
+  }
+
+  .el-table__cell {
+    padding: 12px 0;
+  }
+}
+
+// 菜单样式优化
+.el-menu {
+  border-right: none;
+
+  .el-menu-item {
+    height: 50px;
+    line-height: 50px;
+
+    &:hover {
+      background-color: var(--el-fill-color-light);
+    }
+
+    &.is-active {
+      background-color: var(--el-color-primary-light-9);
+    }
+  }
+}
+
+// 卡片样式优化
+.el-card {
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+
+  &__header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--el-border-color-light);
+  }
+
+  &__body {
+    padding: 20px;
+  }
+}
+
+// 对话框样式优化
+.el-dialog {
+  border-radius: 8px;
+  overflow: hidden;
+
+  &__header {
+    padding: 20px;
+    margin-right: 0;
+    border-bottom: 1px solid var(--el-border-color-light);
+  }
+
+  &__body {
+    padding: 20px;
+  }
+
+  &__footer {
+    padding: 16px 20px;
+    border-top: 1px solid var(--el-border-color-light);
+  }
+}
+
+// 分页样式优化
+.el-pagination {
+  .el-pagination__total {
+    color: var(--text-secondary);
+  }
+
+  .el-pager li {
+    border-radius: 4px;
+
+    &.is-active {
+      background-color: var(--primary-color);
+    }
+  }
+}
+
+// 标签样式优化
+.el-tag {
+  border-radius: 4px;
+}
+
+// 消息提示样式优化
+.el-message {
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+// 下拉菜单样式优化
+.el-dropdown {
+  &__popper {
+    border-radius: 8px;
+  }
+}
+
+// 选择器样式优化
+.el-select {
+  .el-input__wrapper {
+    border-radius: 4px;
+  }
+}
+
+// 日期选择器样式优化
+.el-date-editor {
+  .el-input__wrapper {
+    border-radius: 4px;
+  }
+}
+
+// 树形组件样式优化
+.el-tree {
+  --el-tree-node-hover-bg-color: var(--el-fill-color-light);
+
+  .el-tree-node {
+    &__content {
+      height: 32px;
+      border-radius: 4px;
+    }
+  }
+}
+
+// 标签页样式优化
+.el-tabs {
+  &__header {
+    margin-bottom: 16px;
+  }
+
+  &__item {
+    font-weight: 500;
+
+    &.is-active {
+      font-weight: 600;
+    }
+  }
+}
+
+// 警告提示样式优化
+.el-alert {
+  border-radius: 6px;
+
+  &__title {
+    font-weight: 600;
+  }
+}
+
+// 加载样式优化
+.el-loading-mask {
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(2px);
+}
+
+// 空状态样式优化
+.el-empty {
+  padding: 40px 0;
+
+  &__description {
+    margin-top: 16px;
+    color: var(--text-secondary);
+  }
+}

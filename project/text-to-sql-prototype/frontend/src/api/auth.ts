@@ -1,23 +1,28 @@
 import request from '@/utils/request'
+import type {
+  LoginRequest,
+  LoginResponse,
+  RegisterRequest,
+  RegisterResponse,
+  User,
+  ChangePasswordRequest,
+} from '@/types'
 
-export interface LoginParams {
-  username: string
-  password: string
-}
+// ==================== 类型导出 ====================
 
-export interface LoginResult {
-  access_token: string
-  token_type: string
-}
+export type LoginParams = LoginRequest
+export type LoginResult = LoginResponse
+export type RegisterParams = RegisterRequest
+export type RegisterResult = RegisterResponse
+export type UserInfo = User
+export type ChangePasswordParams = ChangePasswordRequest
 
-export interface UserInfo {
-  id: number
-  username: string
-  email: string
-  is_active: boolean
-}
+// ==================== API 函数 ====================
 
-// 登录
+/**
+ * 用户登录
+ * @param data 登录参数
+ */
 export const login = (data: LoginParams): Promise<LoginResult> => {
   const formData = new FormData()
   formData.append('username', data.username)
@@ -29,7 +34,32 @@ export const login = (data: LoginParams): Promise<LoginResult> => {
   }) as Promise<LoginResult>
 }
 
-// 获取当前用户信息
+/**
+ * 用户注册
+ * @param data 注册参数
+ */
+export const register = (data: RegisterParams): Promise<RegisterResult> => {
+  return request.post('/auth/register', data) as Promise<RegisterResult>
+}
+
+/**
+ * 获取当前用户信息
+ */
 export const getCurrentUser = (): Promise<UserInfo> => {
   return request.get('/auth/me') as Promise<UserInfo>
+}
+
+/**
+ * 用户登出
+ */
+export const logout = (): Promise<void> => {
+  return request.post('/auth/logout') as Promise<void>
+}
+
+/**
+ * 修改密码
+ * @param data 密码修改参数
+ */
+export const changePassword = (data: ChangePasswordParams): Promise<void> => {
+  return request.put('/auth/password', data) as Promise<void>
 }
