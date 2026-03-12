@@ -1,0 +1,193 @@
+{
+  "description": "E2E测试用数据库连接配置示例",
+  "connections": [
+    {
+      "id": "conn-mysql-valid",
+      "name": "MySQL-Test",
+      "type": "mysql",
+      "version": "8.0",
+      "host": "localhost",
+      "port": 3306,
+      "database": "test_db",
+      "username": "root",
+      "password": "root",
+      "useSSL": false,
+      "readOnly": false,
+      "expectedStatus": "online",
+      "testQuery": "SELECT 1",
+      "tables": [
+        {
+          "name": "users",
+          "columns": [
+            {"name": "id", "type": "INT", "primaryKey": true},
+            {"name": "name", "type": "VARCHAR(100)"},
+            {"name": "email", "type": "VARCHAR(100)"},
+            {"name": "age", "type": "INT"},
+            {"name": "department_id", "type": "INT"}
+          ]
+        },
+        {
+          "name": "orders",
+          "columns": [
+            {"name": "id", "type": "INT", "primaryKey": true},
+            {"name": "user_id", "type": "INT"},
+            {"name": "amount", "type": "DECIMAL(10,2)"},
+            {"name": "order_date", "type": "DATE"},
+            {"name": "status", "type": "VARCHAR(20)"}
+          ]
+        },
+        {
+          "name": "departments",
+          "columns": [
+            {"name": "id", "type": "INT", "primaryKey": true},
+            {"name": "name", "type": "VARCHAR(100)"},
+            {"name": "location", "type": "VARCHAR(100)"}
+          ]
+        }
+      ],
+      "sampleData": {
+        "users": [
+          {"id": 1, "name": "张三", "email": "zhangsan@example.com", "age": 28, "department_id": 1},
+          {"id": 2, "name": "李四", "email": "lisi@example.com", "age": 32, "department_id": 2},
+          {"id": 3, "name": "王五", "email": "wangwu@example.com", "age": 25, "department_id": 1}
+        ],
+        "orders": [
+          {"id": 1, "user_id": 1, "amount": 1000.00, "order_date": "2024-01-15", "status": "completed"},
+          {"id": 2, "user_id": 1, "amount": 2000.00, "order_date": "2024-02-20", "status": "completed"},
+          {"id": 3, "user_id": 2, "amount": 1500.00, "order_date": "2024-03-10", "status": "pending"}
+        ],
+        "departments": [
+          {"id": 1, "name": "技术部", "location": "北京"},
+          {"id": 2, "name": "销售部", "location": "上海"}
+        ]
+      }
+    },
+    {
+      "id": "conn-pg-valid",
+      "name": "PostgreSQL-Test",
+      "type": "postgresql",
+      "version": "15",
+      "host": "localhost",
+      "port": 5432,
+      "database": "test_db",
+      "username": "postgres",
+      "password": "postgres",
+      "useSSL": false,
+      "readOnly": false,
+      "expectedStatus": "online",
+      "testQuery": "SELECT 1",
+      "tables": [
+        {
+          "name": "customers",
+          "columns": [
+            {"name": "id", "type": "SERIAL", "primaryKey": true},
+            {"name": "name", "type": "VARCHAR(100)"},
+            {"name": "email", "type": "VARCHAR(100)"},
+            {"name": "created_at", "type": "TIMESTAMP"}
+          ]
+        },
+        {
+          "name": "products",
+          "columns": [
+            {"name": "id", "type": "SERIAL", "primaryKey": true},
+            {"name": "name", "type": "VARCHAR(200)"},
+            {"name": "price", "type": "NUMERIC(10,2)"},
+            {"name": "category", "type": "VARCHAR(50)"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "conn-sqlite-valid",
+      "name": "SQLite-Test",
+      "type": "sqlite",
+      "filePath": "./test.db",
+      "expectedStatus": "online",
+      "testQuery": "SELECT 1",
+      "tables": [
+        {
+          "name": "employees",
+          "columns": [
+            {"name": "id", "type": "INTEGER", "primaryKey": true},
+            {"name": "name", "type": "TEXT"},
+            {"name": "salary", "type": "REAL"},
+            {"name": "department", "type": "TEXT"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "conn-mysql-invalid-host",
+      "name": "MySQL-Invalid-Host",
+      "type": "mysql",
+      "host": "invalid_host_xyz",
+      "port": 3306,
+      "database": "test",
+      "username": "root",
+      "password": "root",
+      "expectedStatus": "offline",
+      "expectedError": "无法连接到主机"
+    },
+    {
+      "id": "conn-mysql-invalid-port",
+      "name": "MySQL-Invalid-Port",
+      "type": "mysql",
+      "host": "localhost",
+      "port": 3307,
+      "database": "test",
+      "username": "root",
+      "password": "root",
+      "expectedStatus": "offline",
+      "expectedError": "连接被拒绝"
+    },
+    {
+      "id": "conn-mysql-wrong-cred",
+      "name": "MySQL-Wrong-Credentials",
+      "type": "mysql",
+      "host": "localhost",
+      "port": 3306,
+      "database": "test",
+      "username": "wrong_user",
+      "password": "wrong_pass",
+      "expectedStatus": "offline",
+      "expectedError": "认证失败"
+    }
+  ],
+  "testQueries": [
+    {
+      "id": "query-simple-select",
+      "name": "简单查询",
+      "naturalLanguage": "查询所有用户",
+      "expectedSQL": "SELECT * FROM users",
+      "expectedResultCount": 3
+    },
+    {
+      "id": "query-aggregation",
+      "name": "聚合查询",
+      "naturalLanguage": "统计订单数量",
+      "expectedSQL": "SELECT COUNT(*) FROM orders",
+      "expectedResultCount": 1
+    },
+    {
+      "id": "query-conditional",
+      "name": "条件查询",
+      "naturalLanguage": "查询年龄大于25岁的用户",
+      "expectedSQL": "SELECT * FROM users WHERE age > 25",
+      "expectedResultCount": 2
+    },
+    {
+      "id": "query-join",
+      "name": "连接查询",
+      "naturalLanguage": "查询每个用户的订单数量",
+      "expectedSQL": "SELECT u.name, COUNT(o.id) FROM users u LEFT JOIN orders o ON u.id = o.user_id GROUP BY u.id",
+      "expectedResultCount": 3
+    },
+    {
+      "id": "query-groupby",
+      "name": "分组查询",
+      "naturalLanguage": "统计每个部门的员工数量",
+      "expectedSQL": "SELECT department_id, COUNT(*) FROM users GROUP BY department_id",
+      "expectedResultCount": 2
+    }
+  ]
+}
