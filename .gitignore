@@ -23,3 +23,6 @@ Thumbs.db
 
 # Temporary files
 tmp/
+
+# Playwright MCP generated files
+.playwright-mcp/
