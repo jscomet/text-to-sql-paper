@@ -1,0 +1,103 @@
+@import './variables.scss';
+@import './mixins.scss';
+
+// 全局样式
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
+  font-size: 14px;
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  height: 100%;
+}
+
+// 通用类
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.text-left {
+  text-align: left;
+}
+
+.float-left {
+  float: left;
+}
+
+.float-right {
+  float: right;
+}
+
+.clearfix {
+  @include clearfix;
+}
+
+// 边距
+@for $i from 0 through 20 {
+  .m-#{$i} {
+    margin: #{$i * 4}px !important;
+  }
+  .mt-#{$i} {
+    margin-top: #{$i * 4}px !important;
+  }
+  .mr-#{$i} {
+    margin-right: #{$i * 4}px !important;
+  }
+  .mb-#{$i} {
+    margin-bottom: #{$i * 4}px !important;
+  }
+  .ml-#{$i} {
+    margin-left: #{$i * 4}px !important;
+  }
+  .p-#{$i} {
+    padding: #{$i * 4}px !important;
+  }
+  .pt-#{$i} {
+    padding-top: #{$i * 4}px !important;
+  }
+  .pr-#{$i} {
+    padding-right: #{$i * 4}px !important;
+  }
+  .pb-#{$i} {
+    padding-bottom: #{$i * 4}px !important;
+  }
+  .pl-#{$i} {
+    padding-left: #{$i * 4}px !important;
+  }
+}
+
+// 卡片样式
+.card {
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  padding: 20px;
+}
+
+// 页面容器
+.page-container {
+  padding: 20px;
+  min-height: calc(100vh - #{$header-height});
+  background: var(--bg-color);
+}
+
+// 滚动条样式
+* {
+  @include scrollbar;
+}
