@@ -8,11 +8,13 @@ const BlankLayout = () => import('@/layouts/BlankLayout.vue')
 
 // 页面组件
 const LoginView = () => import('@/views/LoginView.vue')
+const RegisterView = () => import('@/views/RegisterView.vue')
 const HomeView = () => import('@/views/HomeView.vue')
 const QueryView = () => import('@/views/QueryView.vue')
 const ConnectionsView = () => import('@/views/ConnectionsView.vue')
 const HistoryView = () => import('@/views/HistoryView.vue')
 const EvaluationsView = () => import('@/views/EvaluationsView.vue')
+const EvaluationDetailView = () => import('@/views/EvaluationDetailView.vue')
 const SettingsView = () => import('@/views/SettingsView.vue')
 
 const routes: RouteRecordRaw[] = [
@@ -24,6 +26,16 @@ const routes: RouteRecordRaw[] = [
       layout: 'blank',
       public: true,
       title: '登录',
+    },
+  },
+  {
+    path: '/register',
+    name: 'Register',
+    component: RegisterView,
+    meta: {
+      layout: 'blank',
+      public: true,
+      title: '注册',
     },
   },
   {
@@ -74,6 +86,16 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: '评测',
           icon: 'TrendCharts',
+        },
+      },
+      {
+        path: 'evaluations/:id',
+        name: 'EvaluationDetail',
+        component: EvaluationDetailView,
+        meta: {
+          title: '评测详情',
+          icon: 'TrendCharts',
+          hideInMenu: true,
         },
       },
       {

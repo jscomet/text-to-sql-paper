@@ -11,6 +11,7 @@ import type {
 
 // ==================== 类型导出 ====================
 
+export type { CreateEvalTaskRequest, EvalTask, EvalTaskDetail, EvalResult, EvalStats }
 export type DatasetType = 'bird' | 'spider' | 'custom'
 export type EvalMode = 'greedy_search' | 'major_voting' | 'pass@k'
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
@@ -27,10 +28,13 @@ export interface EvalTaskParams extends PaginationParams {
 
 /**
  * 创建评测任务
- * @param data 任务参数
+ * @param data 任务参数，支持 FormData（文件上传）或普通对象
  */
-export const createEvalTask = (data: CreateEvalTaskParams): Promise<EvalTask> => {
-  return request.post('/eval/tasks', data) as Promise<EvalTask>
+export const createEvalTask = (data: CreateEvalTaskParams | FormData): Promise<EvalTask> => {
+  const isFormData = data instanceof FormData
+  return request.post('/eval/tasks', data, {
+    headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : undefined,
+  }) as Promise<EvalTask>
 }
 
 /**

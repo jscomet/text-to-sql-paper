@@ -1,19 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue"
-
-interface Column {
-  name: string
-  type: string
-  nullable: boolean
-  default?: string
-  comment?: string
-}
-
-interface Table {
-  name: string
-  comment?: string
-  columns: Column[]
-}
+import type { Column, Table } from "@/types"
 
 interface Schema {
   name: string
@@ -39,6 +26,7 @@ interface TreeNodeData {
   schema?: Schema
   isLeaf?: boolean
   children?: TreeNodeData[]
+  comment?: string
 }
 
 const emit = defineEmits<{
@@ -62,11 +50,13 @@ const treeData = computed((): TreeNodeData[] => {
       type: 'table' as const,
       data: table,
       schema: schema,
+      comment: table.comment,
       children: table.columns.map((col): TreeNodeData => ({
         id: `col-${schema.name}-${table.name}-${col.name}`,
         label: col.name,
         type: 'column' as const,
         data: col,
+        comment: col.comment,
         isLeaf: true,
       })),
     })),
@@ -158,16 +148,23 @@ defineExpose({
         @node-click="handleNodeClick"
       >
         <template #default="{ node, data }">
-          <span class="tree-node" :class="`node-${data.type}`">
-            <el-icon :size="14">
-              <component :is="getNodeIcon(data)" />
-            </el-icon>
-            <span class="node-label">{{ node.label }}</span>
-            <span v-if="data.type === 'column'" class="column-type" :class="getColumnTypeClass(data.data.type)">
-              {{ data.data.type }}
+          <el-tooltip
+            :content="data.comment || node.label"
+            placement="top"
+            :show-after="500"
+            :disabled="!data.comment"
+          >
+            <span class="tree-node" :class="`node-${data.type}`">
+              <el-icon :size="14">
+                <component :is="getNodeIcon(data)" />
+              </el-icon>
+              <span class="node-label">{{ node.label }}</span>
+              <span v-if="data.type === 'column'" class="column-type" :class="getColumnTypeClass(data.data.type)">
+                {{ data.data.type }}
+              </span>
+              <span v-if="data.type === 'column' && !data.data.nullable" class="not-null">NOT NULL</span>
             </span>
-            <span v-if="data.type === 'column' && !data.data.nullable" class="not-null">NOT NULL</span>
-          </span>
+          </el-tooltip>
         </template>
       </el-tree>
 

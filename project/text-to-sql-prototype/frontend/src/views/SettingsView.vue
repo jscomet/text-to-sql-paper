@@ -1,12 +1,23 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
+import * as authApi from '@/api/auth'
+import * as apiKeysApi from '@/api/apiKeys'
+import type { ApiKey, KeyType } from '@/types'
 
 const userStore = useUserStore()
 
 // 当前激活的标签页
 const activeTab = ref('profile')
+
+// 加载状态
+const loading = ref({
+  profile: false,
+  password: false,
+  apiKeys: false,
+})
 
 // 个人信息表单
 const profileForm = reactive({
@@ -59,22 +70,26 @@ const passwordRules: FormRules = {
   ],
 }
 
-// 系统设置
-const systemSettings = reactive({
-  theme: 'light',
-  language: 'zh-CN',
-  autoSave: true,
-  notification: true,
-})
-
 // 处理更新个人信息
 const handleUpdateProfile = async (formEl: FormInstance | undefined) => {
   if (!formEl) return
 
   await formEl.validate(async (valid) => {
     if (valid) {
-      // TODO: 调用后端 API 更新个人信息
-      console.log('更新个人信息:', profileForm)
+      loading.value.profile = true
+      try {
+        // 更新本地用户信息
+        userStore.updateUserInfo({
+          username: profileForm.username,
+          email: profileForm.email,
+        })
+        ElMessage.success('个人信息更新成功')
+      } catch (error) {
+        console.error('更新个人信息失败:', error)
+        ElMessage.error('更新失败')
+      } finally {
+        loading.value.profile = false
+      }
     }
   })
 }
@@ -85,21 +100,177 @@ const handleChangePassword = async (formEl: FormInstance | undefined) => {
 
   await formEl.validate(async (valid) => {
     if (valid) {
-      // TODO: 调用后端 API 修改密码
-      console.log('修改密码:', passwordForm)
-      // 清空表单
-      passwordForm.oldPassword = ''
-      passwordForm.newPassword = ''
-      passwordForm.confirmPassword = ''
+      loading.value.password = true
+      try {
+        await authApi.changePassword({
+          old_password: passwordForm.oldPassword,
+          new_password: passwordForm.newPassword,
+        })
+        ElMessage.success('密码修改成功，请重新登录')
+        // 清空表单
+        passwordForm.oldPassword = ''
+        passwordForm.newPassword = ''
+        passwordForm.confirmPassword = ''
+        // 延迟登出
+        setTimeout(() => {
+          userStore.logout()
+        }, 1500)
+      } catch (error) {
+        console.error('修改密码失败:', error)
+        ElMessage.error('原密码错误，修改失败')
+      } finally {
+        loading.value.password = false
+      }
     }
   })
 }
 
-// 处理保存系统设置
-const handleSaveSettings = () => {
-  // TODO: 调用后端 API 保存系统设置
-  console.log('保存系统设置:', systemSettings)
+// ==================== API Key 管理 ====================
+
+// API Key 列表
+const apiKeys = ref<ApiKey[]>([])
+
+// 添加 API Key 对话框
+const apiKeyDialogVisible = ref(false)
+const apiKeyForm = reactive({
+  name: '',
+  key_type: 'openai' as KeyType,
+  api_key: '',
+  model: '',
+  is_default: false,
+})
+
+const keyTypeOptions = [
+  { label: 'OpenAI', value: 'openai' },
+  { label: '阿里云', value: 'alibaba' },
+  { label: 'Anthropic', value: 'anthropic' },
+  { label: 'Azure OpenAI', value: 'azure_openai' },
+  { label: '本地模型', value: 'local' },
+]
+
+// 获取 API Key 列表
+const fetchApiKeys = async () => {
+  loading.value.apiKeys = true
+  try {
+    const response = await apiKeysApi.getApiKeys()
+    apiKeys.value = response
+  } catch (error) {
+    console.error('获取 API Keys 失败:', error)
+    ElMessage.error('获取 API Keys 失败')
+  } finally {
+    loading.value.apiKeys = false
+  }
 }
+
+// 打开添加对话框
+const openAddApiKeyDialog = () => {
+  apiKeyForm.name = ''
+  apiKeyForm.key_type = 'openai'
+  apiKeyForm.api_key = ''
+  apiKeyForm.model = ''
+  apiKeyForm.is_default = false
+  apiKeyDialogVisible.value = true
+}
+
+// 添加 API Key
+const handleAddApiKey = async () => {
+  if (!apiKeyForm.name || !apiKeyForm.api_key) {
+    ElMessage.warning('请填写完整信息')
+    return
+  }
+
+  try {
+    await apiKeysApi.createApiKey({
+      name: apiKeyForm.name,
+      key_type: apiKeyForm.key_type,
+      api_key: apiKeyForm.api_key,
+      model: apiKeyForm.model || undefined,
+      is_default: apiKeyForm.is_default,
+    })
+    ElMessage.success('API Key 添加成功')
+    apiKeyDialogVisible.value = false
+    fetchApiKeys()
+  } catch (error) {
+    console.error('添加 API Key 失败:', error)
+    ElMessage.error('添加失败')
+  }
+}
+
+// 删除 API Key
+const handleDeleteApiKey = async (id: number) => {
+  try {
+    await ElMessageBox.confirm('确定要删除这个 API Key 吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+    await apiKeysApi.deleteApiKey(id)
+    ElMessage.success('删除成功')
+    fetchApiKeys()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除 API Key 失败:', error)
+      ElMessage.error('删除失败')
+    }
+  }
+}
+
+// 设置默认 API Key
+const handleSetDefault = async (id: number) => {
+  try {
+    await apiKeysApi.setDefaultApiKey(id)
+    ElMessage.success('设置成功')
+    fetchApiKeys()
+  } catch (error) {
+    console.error('设置默认 API Key 失败:', error)
+    ElMessage.error('设置失败')
+  }
+}
+
+// 获取 Key Type 标签
+const getKeyTypeLabel = (type: KeyType) => {
+  const map: Record<string, string> = {
+    openai: 'OpenAI',
+    alibaba: '阿里云',
+    anthropic: 'Anthropic',
+    azure_openai: 'Azure',
+    local: '本地',
+  }
+  return map[type] || type
+}
+
+// 获取 Key Type 标签样式
+const getKeyTypeTag = (type: KeyType) => {
+  const map: Record<string, string> = {
+    openai: '',
+    alibaba: 'success',
+    anthropic: 'warning',
+    azure_openai: 'info',
+    local: 'info',
+  }
+  return map[type] || ''
+}
+
+// ==================== 主题设置 ====================
+
+// 当前主题
+const currentTheme = ref(localStorage.getItem('theme') || 'light')
+
+// 切换主题
+const toggleTheme = (theme: string) => {
+  currentTheme.value = theme
+  localStorage.setItem('theme', theme)
+  if (theme === 'dark') {
+    document.documentElement.classList.add('dark')
+  } else {
+    document.documentElement.classList.remove('dark')
+  }
+  ElMessage.success(`已切换到${theme === 'dark' ? '深色' : '浅色'}主题`)
+}
+
+onMounted(() => {
+  fetchApiKeys()
+})
 </script>
 
 <template>
@@ -121,7 +292,11 @@ const handleSaveSettings = () => {
             <el-input v-model="profileForm.email" />
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" @click="handleUpdateProfile(profileFormRef)">
+            <el-button
+              type="primary"
+              :loading="loading.profile"
+              @click="handleUpdateProfile(profileFormRef)"
+            >
               保存修改
             </el-button>
           </el-form-item>
@@ -147,18 +322,78 @@ const handleSaveSettings = () => {
             <el-input v-model="passwordForm.confirmPassword" type="password" show-password />
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" @click="handleChangePassword(passwordFormRef)">
+            <el-button
+              type="primary"
+              :loading="loading.password"
+              @click="handleChangePassword(passwordFormRef)"
+            >
               修改密码
             </el-button>
           </el-form-item>
         </el-form>
       </el-tab-pane>
 
-      <!-- 系统设置 -->
-      <el-tab-pane label="系统设置" name="system">
+      <!-- API Key 配置 -->
+      <el-tab-pane label="API Key" name="apikeys">
+        <div class="apikeys-section">
+          <div class="section-header">
+            <el-button type="primary" @click="openAddApiKeyDialog">
+              <el-icon><Plus /></el-icon>添加 API Key
+            </el-button>
+          </div>
+
+          <el-table :data="apiKeys" v-loading="loading.apiKeys" style="width: 100%">
+            <el-table-column prop="name" label="名称" min-width="120" />
+            <el-table-column prop="key_type" label="类型" width="120">
+              <template #default="{ row }">
+                <el-tag :type="getKeyTypeTag(row.key_type)">
+                  {{ getKeyTypeLabel(row.key_type) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="model" label="模型" width="150">
+              <template #default="{ row }">
+                {{ row.model || '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="is_default" label="默认" width="80">
+              <template #default="{ row }">
+                <el-tag v-if="row.is_default" type="success" size="small">是</el-tag>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="created_at" label="创建时间" width="180">
+              <template #default="{ row }">
+                {{ new Date(row.created_at).toLocaleString('zh-CN') }}
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="180" fixed="right">
+              <template #default="{ row }">
+                <el-button
+                  v-if="!row.is_default"
+                  link
+                  type="primary"
+                  size="small"
+                  @click="handleSetDefault(row.id)"
+                >
+                  设为默认
+                </el-button>
+                <el-button link type="danger" size="small" @click="handleDeleteApiKey(row.id)">
+                  删除
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <el-empty v-if="apiKeys.length === 0 && !loading.apiKeys" description="暂无 API Key" />
+        </div>
+      </el-tab-pane>
+
+      <!-- 主题设置 -->
+      <el-tab-pane label="主题" name="theme">
         <el-form label-width="100px" style="max-width: 500px">
-          <el-form-item label="主题">
-            <el-radio-group v-model="systemSettings.theme">
+          <el-form-item label="界面主题">
+            <el-radio-group v-model="currentTheme" @change="toggleTheme">
               <el-radio-button label="light">
                 <el-icon><Sunny /></el-icon>
                 浅色
@@ -168,21 +403,6 @@ const handleSaveSettings = () => {
                 深色
               </el-radio-button>
             </el-radio-group>
-          </el-form-item>
-          <el-form-item label="语言">
-            <el-select v-model="systemSettings.language" style="width: 200px">
-              <el-option label="简体中文" value="zh-CN" />
-              <el-option label="English" value="en-US" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="自动保存">
-            <el-switch v-model="systemSettings.autoSave" />
-          </el-form-item>
-          <el-form-item label="消息通知">
-            <el-switch v-model="systemSettings.notification" />
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" @click="handleSaveSettings">保存设置</el-button>
           </el-form-item>
         </el-form>
       </el-tab-pane>
@@ -202,6 +422,43 @@ const handleSaveSettings = () => {
         </div>
       </el-tab-pane>
     </el-tabs>
+
+    <!-- 添加 API Key 对话框 -->
+    <el-dialog v-model="apiKeyDialogVisible" title="添加 API Key" width="500px">
+      <el-form :model="apiKeyForm" label-width="100px">
+        <el-form-item label="名称" required>
+          <el-input v-model="apiKeyForm.name" placeholder="例如：OpenAI GPT-4" />
+        </el-form-item>
+        <el-form-item label="类型" required>
+          <el-select v-model="apiKeyForm.key_type" style="width: 100%">
+            <el-option
+              v-for="opt in keyTypeOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="API Key" required>
+          <el-input
+            v-model="apiKeyForm.api_key"
+            type="password"
+            show-password
+            placeholder="输入您的 API Key"
+          />
+        </el-form-item>
+        <el-form-item label="模型">
+          <el-input v-model="apiKeyForm.model" placeholder="例如：gpt-4（可选）" />
+        </el-form-item>
+        <el-form-item label="设为默认">
+          <el-switch v-model="apiKeyForm.is_default" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="apiKeyDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleAddApiKey">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -209,6 +466,14 @@ const handleSaveSettings = () => {
 .settings-page {
   max-width: 900px;
   margin: 0 auto;
+}
+
+.apikeys-section {
+  .section-header {
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: flex-end;
+  }
 }
 
 .about-section {

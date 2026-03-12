@@ -3,6 +3,7 @@ import { ref, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { User, Lock } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 
 const route = useRoute()
@@ -20,6 +21,9 @@ const loginFormRef = ref<FormInstance>()
 
 // 加载状态
 const loading = ref(false)
+
+// 记住我
+const rememberMe = ref(false)
 
 // 表单验证规则
 const rules: FormRules = {
@@ -46,17 +50,38 @@ const handleLogin = async () => {
           password: loginForm.password,
         })
 
+        // 处理"记住我"
+        if (rememberMe.value) {
+          localStorage.setItem('remember_username', loginForm.username)
+        } else {
+          localStorage.removeItem('remember_username')
+        }
+
         // 登录成功，跳转到首页或重定向页面
         const redirect = route.query.redirect as string
         router.push(redirect || '/')
       } catch (error) {
         console.error('登录失败:', error)
+        const err = error as { response?: { data?: { message?: string } }; message?: string }
+        const errorMsg = err.response?.data?.message || err.message || '登录失败，请检查用户名和密码'
+        ElMessage.error(errorMsg)
       } finally {
         loading.value = false
       }
     }
   })
 }
+
+// 初始化记住的用户名
+const initRememberedUser = () => {
+  const remembered = localStorage.getItem('remember_username')
+  if (remembered) {
+    loginForm.username = remembered
+    rememberMe.value = true
+  }
+}
+
+initRememberedUser()
 </script>
 
 <template>
@@ -113,6 +138,18 @@ const handleLogin = async () => {
             登录
           </el-button>
         </el-form-item>
+
+        <div class="login-options">
+          <el-checkbox v-model="rememberMe">记住我</el-checkbox>
+          <el-link type="primary" :underline="false">忘记密码?</el-link>
+        </div>
+
+        <div class="register-link">
+          <span>还没有账号?</span>
+          <el-link type="primary" :underline="false" @click="router.push('/register')">
+            立即注册
+          </el-link>
+        </div>
       </el-form>
     </el-card>
   </div>
@@ -153,6 +190,23 @@ const handleLogin = async () => {
 
     .login-button {
       width: 100%;
+    }
+
+    .login-options {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .register-link {
+      text-align: center;
+      font-size: 14px;
+      color: #606266;
+
+      span {
+        margin-right: 4px;
+      }
     }
   }
 }

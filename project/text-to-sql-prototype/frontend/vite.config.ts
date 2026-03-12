@@ -24,7 +24,5 @@ export default defineConfig(({ mode }) => ({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
-  define: {
-    'import.meta.env.VITE_API_BASE_URL': JSON.stringify('http://localhost:8001'),
-  },
+  // 环境变量从 .env 文件加载，不在此处硬编码
 }))

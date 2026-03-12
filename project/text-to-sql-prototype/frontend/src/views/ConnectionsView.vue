@@ -1,112 +1,223 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, reactive } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus, Search, Connection } from '@element-plus/icons-vue'
+import type { Connection as ConnectionType, PaginationParams } from '@/types'
+import {
+  getConnections,
+  createConnection,
+  updateConnection,
+  deleteConnection,
+  testConnection,
+  type CreateConnectionParams,
+  type UpdateConnectionParams,
+} from '@/api/connections'
+import ConnectionFormDialog from '@/components/ConnectionFormDialog.vue'
 
-// 连接列表
-interface Connection {
-  id: number
-  name: string
-  host: string
-  port: number
-  database: string
-  username: string
-  password?: string
-  status: 'connected' | 'disconnected' | 'error'
-  createdAt: string
-}
+// 加载状态
+const loading = ref(false)
+const testLoading = ref<number | null>(null)
 
-const connections = ref<Connection[]>([
-  {
-    id: 1,
-    name: '本地 MySQL',
-    host: 'localhost',
-    port: 3306,
-    database: 'test_db',
-    username: 'root',
-    status: 'connected',
-    createdAt: '2024-01-15 10:30:00',
-  },
-])
+// 连接列表数据
+const connections = ref<ConnectionType[]>([])
+const pagination = reactive({
+  page: 1,
+  page_size: 10,
+  total: 0,
+  total_pages: 0,
+})
 
-// 对话框显示状态
+// 搜索关键词
+const searchKeyword = ref('')
+
+// 对话框状态
 const dialogVisible = ref(false)
 const isEdit = ref(false)
+const currentConnection = ref<ConnectionType | null>(null)
 
-// 表单数据
-const formData = ref<Partial<Connection>>({
-  name: '',
-  host: '',
-  port: 3306,
-  database: '',
-  username: '',
-})
+// 获取错误消息
+const getErrorMessage = (error: unknown): string => {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const errWithResponse = error as { response?: { data?: { message?: string } } }
+    return errWithResponse.response?.data?.message || ''
+  }
+  return ''
+}
+
+// 加载连接列表
+const loadConnections = async () => {
+  loading.value = true
+  try {
+    const params: PaginationParams & { keyword?: string } = {
+      page: pagination.page,
+      page_size: pagination.page_size,
+    }
+    // 如果有搜索关键词，添加到请求参数
+    if (searchKeyword.value.trim()) {
+      params.keyword = searchKeyword.value.trim()
+    }
+    const res = await getConnections(params)
+    connections.value = res.list
+    pagination.total = res.pagination.total
+    pagination.total_pages = res.pagination.total_pages
+  } catch (error) {
+    ElMessage.error('加载连接列表失败')
+    console.error(error)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 搜索连接
+const handleSearch = () => {
+  pagination.page = 1
+  loadConnections()
+}
+
+// 处理分页变化
+const handlePageChange = (page: number) => {
+  pagination.page = page
+  loadConnections()
+}
+
+// 处理每页条数变化
+const handleSizeChange = (size: number) => {
+  pagination.page_size = size
+  pagination.page = 1
+  loadConnections()
+}
 
 // 处理添加连接
 const handleAdd = () => {
   isEdit.value = false
-  formData.value = {
-    name: '',
-    host: '',
-    port: 3306,
-    database: '',
-    username: '',
-  }
+  currentConnection.value = null
   dialogVisible.value = true
 }
 
 // 处理编辑连接
-const handleEdit = (row: Connection) => {
+const handleEdit = (row: ConnectionType) => {
   isEdit.value = true
-  formData.value = { ...row }
+  currentConnection.value = row
   dialogVisible.value = true
 }
 
 // 处理删除连接
-const handleDelete = (row: Connection) => {
-  // TODO: 调用后端 API 删除连接
-  console.log('删除连接:', row.id)
-  connections.value = connections.value.filter((item) => item.id !== row.id)
+const handleDelete = async (row: ConnectionType) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除连接 "${row.name}" 吗？此操作不可恢复。`,
+      '删除确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+
+    await deleteConnection(row.id)
+    ElMessage.success('删除成功')
+    loadConnections()
+  } catch (error: unknown) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败')
+      console.error(error)
+    }
+  }
 }
 
 // 处理测试连接
-const handleTest = async (row: Connection) => {
-  // TODO: 调用后端 API 测试连接
-  console.log('测试连接:', row.id)
+const handleTest = async (row: ConnectionType) => {
+  testLoading.value = row.id
+  try {
+    const res = await testConnection({
+      db_type: row.db_type,
+      host: row.host,
+      port: row.port,
+      database: row.database,
+      username: row.username || '',
+      password: '', // 测试现有连接不需要密码
+    })
+
+    if (res.connected) {
+      ElMessage.success(`连接成功${res.server_version ? ` (${res.server_version})` : ''}`)
+    } else {
+      ElMessage.error(res.message || '连接失败')
+    }
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error) || '测试连接失败')
+  } finally {
+    testLoading.value = null
+  }
 }
 
-// 处理提交表单
-const handleSubmit = async () => {
-  // TODO: 调用后端 API 保存连接
-  console.log('保存连接:', formData.value)
-  dialogVisible.value = false
+// 处理表单提交
+const handleSubmit = async (formData: CreateConnectionParams | UpdateConnectionParams) => {
+  try {
+    if (isEdit.value && currentConnection.value) {
+      await updateConnection(currentConnection.value.id, formData as UpdateConnectionParams)
+      ElMessage.success('更新成功')
+    } else {
+      await createConnection(formData as CreateConnectionParams)
+      ElMessage.success('创建成功')
+    }
+    dialogVisible.value = false
+    loadConnections()
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error) || (isEdit.value ? '更新失败' : '创建失败'))
+    throw error
+  }
 }
 
 // 获取状态标签类型
-const getStatusType = (status: Connection['status']) => {
-  const typeMap: Record<string, string> = {
-    connected: 'success',
-    disconnected: 'info',
+const getStatusType = (status: ConnectionType['status']) => {
+  const typeMap: Record<string, 'success' | 'info' | 'danger' | 'warning'> = {
+    active: 'success',
+    inactive: 'info',
     error: 'danger',
   }
   return typeMap[status] || 'info'
 }
 
 // 获取状态文本
-const getStatusText = (status: Connection['status']) => {
+const getStatusText = (status: ConnectionType['status']) => {
   const textMap: Record<string, string> = {
-    connected: '已连接',
-    disconnected: '未连接',
-    error: '连接错误',
+    active: '正常',
+    inactive: '未激活',
+    error: '错误',
   }
   return textMap[status] || '未知'
 }
+
+// 获取数据库类型标签
+const getDbTypeLabel = (dbType: ConnectionType['db_type']) => {
+  const labelMap: Record<string, string> = {
+    mysql: 'MySQL',
+    postgresql: 'PostgreSQL',
+    sqlite: 'SQLite',
+    sqlserver: 'SQL Server',
+    oracle: 'Oracle',
+  }
+  return labelMap[dbType] || dbType
+}
+
+// 格式化日期
+const formatDate = (dateStr: string) => {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  return date.toLocaleString('zh-CN')
+}
+
+onMounted(() => {
+  loadConnections()
+})
 </script>
 
 <template>
   <div class="connections-page">
-    <el-card shadow="never">
+    <el-card shadow="never" v-loading="loading">
       <template #header>
         <div class="card-header">
-          <span>数据库连接管理</span>
+          <span class="title">数据库连接管理</span>
           <el-button type="primary" @click="handleAdd">
             <el-icon class="el-icon--left"><Plus /></el-icon>
             添加连接
@@ -114,83 +225,106 @@ const getStatusText = (status: Connection['status']) => {
         </div>
       </template>
 
+      <!-- 搜索栏 -->
+      <div class="search-bar">
+        <el-input
+          v-model="searchKeyword"
+          placeholder="搜索连接名称..."
+          clearable
+          style="width: 300px"
+          @keyup.enter="handleSearch"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+        <el-button type="primary" @click="handleSearch">搜索</el-button>
+      </div>
+
+      <!-- 连接列表表格 -->
       <el-table :data="connections" style="width: 100%" border>
-        <el-table-column prop="name" label="连接名称" min-width="150" />
-        <el-table-column prop="host" label="主机" min-width="150" />
-        <el-table-column prop="port" label="端口" width="100" />
-        <el-table-column prop="database" label="数据库" min-width="150" />
-        <el-table-column prop="username" label="用户名" min-width="120" />
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="name" label="连接名称" min-width="150" show-overflow-tooltip />
+        <el-table-column label="数据库类型" width="120">
           <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)">
+            <el-tag size="small" effect="plain">
+              {{ getDbTypeLabel(row.db_type) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="host" label="主机" min-width="150" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.host || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="port" label="端口" width="80">
+          <template #default="{ row }">
+            {{ row.port || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="database" label="数据库" min-width="120" show-overflow-tooltip />
+        <el-table-column prop="username" label="用户名" min-width="120" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.username || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag :type="getStatusType(row.status)" size="small">
               {{ getStatusText(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" min-width="180" />
-        <el-table-column label="操作" width="250" fixed="right">
+        <el-table-column prop="created_at" label="创建时间" min-width="170">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click="handleTest(row)">
+            {{ formatDate(row.created_at) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="220" fixed="right" align="center">
+          <template #default="{ row }">
+            <el-button
+              type="primary"
+              link
+              size="small"
+              :loading="testLoading === row.id"
+              @click="handleTest(row)"
+            >
+              <el-icon v-if="testLoading !== row.id"><Connection /></el-icon>
               测试
             </el-button>
             <el-button type="primary" link size="small" @click="handleEdit(row)">
               编辑
             </el-button>
-            <el-popconfirm
-              title="确定删除该连接吗？"
-              confirm-button-text="确定"
-              cancel-button-text="取消"
-              @confirm="handleDelete(row)"
-            >
-              <template #reference>
-                <el-button type="danger" link size="small">删除</el-button>
-              </template>
-            </el-popconfirm>
+            <el-button type="danger" link size="small" @click="handleDelete(row)">
+              删除
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
 
       <!-- 空状态 -->
-      <el-empty v-if="connections.length === 0" description="暂无数据库连接" />
+      <el-empty v-if="!loading && connections.length === 0" description="暂无数据库连接" />
+
+      <!-- 分页 -->
+      <div class="pagination-wrapper" v-if="pagination.total > 0">
+        <el-pagination
+          v-model:current-page="pagination.page"
+          v-model:page-size="pagination.page_size"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="pagination.total"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+          @current-change="handlePageChange"
+        />
+      </div>
     </el-card>
 
-    <!-- 添加/编辑对话框 -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="isEdit ? '编辑连接' : '添加连接'"
-      width="500px"
-    >
-      <el-form :model="formData" label-width="100px">
-        <el-form-item label="连接名称" required>
-          <el-input v-model="formData.name" placeholder="请输入连接名称" />
-        </el-form-item>
-        <el-form-item label="主机地址" required>
-          <el-input v-model="formData.host" placeholder="例如: localhost" />
-        </el-form-item>
-        <el-form-item label="端口" required>
-          <el-input-number v-model="formData.port" :min="1" :max="65535" />
-        </el-form-item>
-        <el-form-item label="数据库" required>
-          <el-input v-model="formData.database" placeholder="请输入数据库名" />
-        </el-form-item>
-        <el-form-item label="用户名" required>
-          <el-input v-model="formData.username" placeholder="请输入用户名" />
-        </el-form-item>
-        <el-form-item label="密码">
-          <el-input
-            v-model="formData.password"
-            type="password"
-            placeholder="请输入密码"
-            show-password
-          />
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit">确定</el-button>
-      </template>
-    </el-dialog>
+    <!-- 添加/编辑连接对话框 -->
+    <ConnectionFormDialog
+      v-model:visible="dialogVisible"
+      :is-edit="isEdit"
+      :connection="currentConnection"
+      @submit="handleSubmit"
+    />
   </div>
 </template>
 
@@ -205,9 +339,23 @@ const getStatusText = (status: Connection['status']) => {
   justify-content: space-between;
   align-items: center;
 
-  span {
+  .title {
     font-weight: bold;
     font-size: 16px;
   }
+}
+
+.search-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.pagination-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 </style>
