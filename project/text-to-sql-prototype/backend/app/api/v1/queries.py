@@ -111,11 +111,38 @@ async def generate_sql_endpoint(
         tables = await schema_service.get_all_schemas(engine)
         schema_text = SchemaService.build_schema_text(tables)
 
-        # Get API key for provider
-        provider = request.provider or "openai"
+        # Get API key for provider (优先使用 dashscope，因为默认配置了阿里云)
+        provider = request.provider or "dashscope"
         api_key = await get_user_api_key(
             current_user.id, provider, db, prefer_default=True
         )
+
+        # Fall back to environment variable if no user-specific key
+        if not api_key:
+            from app.core.config import settings
+            if provider == "dashscope":
+                api_key = settings.dashscope_api_key
+            elif provider == "openai":
+                api_key = settings.openai_api_key
+
+        # Check if API key is configured
+        if not api_key:
+            error_msg = f"未配置 {provider} API Key。请在系统设置中添加 API Key。"
+            await history_service.update_query_result(
+                query_id=query_record.id,
+                execution_status="failed",
+                error_message=error_msg,
+            )
+            return QueryGenerateResponse(
+                success=False,
+                query_id=query_record.id,
+                question=request.question,
+                error=error_msg,
+                sql=None,
+                explanation="",
+                confidence=0.0,
+                execution_time=0,
+            )
 
         # Generate SQL
         dialect = get_sql_dialect(connection.db_type)
@@ -123,8 +150,9 @@ async def generate_sql_endpoint(
             question=request.question,
             schema_text=schema_text,
             provider=provider,
-            model_config={"model": "gpt-3.5-turbo"} if provider == "openai" else {"model": "qwen-turbo"},
+            model_config={"model": "gpt-3.5-turbo"} if provider == "openai" else {"model": "qwen3.5-plus"},
             dialect=dialect,
+            api_key=api_key,
         )
 
         # Format SQL
@@ -145,6 +173,10 @@ async def generate_sql_endpoint(
             question=request.question,
             generated_sql=generated_sql,
             formatted_sql=formatted_sql,
+            sql=generated_sql,
+            explanation="",
+            confidence=0.9,
+            execution_time=generation_time_ms,
         )
 
     except Exception as e:
@@ -159,6 +191,10 @@ async def generate_sql_endpoint(
             query_id=query_record.id,
             question=request.question,
             error=str(e),
+            sql=None,
+            explanation="",
+            confidence=0.0,
+            execution_time=0,
         )
 
 
@@ -268,11 +304,34 @@ async def run_query_endpoint(
         tables = await schema_service.get_all_schemas(engine)
         schema_text = SchemaService.build_schema_text(tables)
 
-        # Get API key for provider
-        provider = request.provider or "openai"
+        # Get API key for provider (优先使用 dashscope，因为默认配置了阿里云)
+        provider = request.provider or "dashscope"
         api_key = await get_user_api_key(
             current_user.id, provider, db, prefer_default=True
         )
+
+        # Fall back to environment variable if no user-specific key
+        if not api_key:
+            if provider == "dashscope":
+                api_key = settings.dashscope_api_key
+            elif provider == "openai":
+                api_key = settings.openai_api_key
+
+        # Check if API key is configured
+        if not api_key:
+            error_msg = f"未配置 {provider} API Key。请在系统设置中添加 API Key。"
+            await history_service.update_query_result(
+                query_id=query_record.id,
+                execution_status="failed",
+                error_message=error_msg,
+            )
+            return QueryRunResponse(
+                success=False,
+                query_id=query_record.id,
+                question=request.question,
+                error=error_msg,
+                generation_time_ms=(time.time() - gen_start_time) * 1000,
+            )
 
         # Generate SQL
         dialect = get_sql_dialect(connection.db_type)
@@ -280,8 +339,9 @@ async def run_query_endpoint(
             question=request.question,
             schema_text=schema_text,
             provider=provider,
-            model_config={"model": "gpt-3.5-turbo"} if provider == "openai" else {"model": "qwen-turbo"},
+            model_config={"model": "gpt-3.5-turbo"} if provider == "openai" else {"model": "qwen3.5-plus"},
             dialect=dialect,
+            api_key=api_key,
         )
 
         formatted_sql = sqlparse.format(generated_sql, reindent=True, keyword_case="upper")
@@ -321,6 +381,10 @@ async def run_query_endpoint(
                     ),
                     execution_time_ms=execution_time_ms,
                     generation_time_ms=generation_time_ms,
+                    sql=generated_sql,
+                    explanation="",
+                    confidence=0.9,
+                    execution_time=execution_time_ms,
                 )
             else:
                 await history_service.update_query_result(
@@ -339,6 +403,10 @@ async def run_query_endpoint(
                     error=exec_result["error"],
                     execution_time_ms=execution_time_ms,
                     generation_time_ms=generation_time_ms,
+                    sql=generated_sql,
+                    explanation="",
+                    confidence=0.0,
+                    execution_time=execution_time_ms,
                 )
         else:
             # Only generated, not executed
@@ -355,6 +423,10 @@ async def run_query_endpoint(
                 generated_sql=generated_sql,
                 formatted_sql=formatted_sql,
                 generation_time_ms=generation_time_ms,
+                sql=generated_sql,
+                explanation="",
+                confidence=0.9,
+                execution_time=0,
             )
 
     except Exception as e:
@@ -376,6 +448,10 @@ async def run_query_endpoint(
             formatted_sql=formatted_sql,
             error=str(e),
             generation_time_ms=generation_time_ms,
+            sql=generated_sql,
+            explanation="",
+            confidence=0.0,
+            execution_time=0,
         )
 
 

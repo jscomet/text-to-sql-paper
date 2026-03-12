@@ -36,8 +36,8 @@ class Settings(BaseSettings):
 
     # LLM APIs - DashScope (Alibaba)
     dashscope_api_key: Optional[str] = None
-    dashscope_model: str = "qwen2.5-coder-32b-instruct"
-    dashscope_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    dashscope_model: str = "qwen3.5-plus"
+    dashscope_base_url: str = "https://coding.dashscope.aliyuncs.com/v1"
 
     # API Key Encryption
     api_key_encryption_key: str = "your-encryption-key-change-in-production"

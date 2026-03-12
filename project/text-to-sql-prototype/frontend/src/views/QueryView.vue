@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import SchemaTree from '@/components/business/SchemaTree.vue'
@@ -159,11 +159,27 @@ const handleGenerateSQL = async () => {
       question: queryForm.question.trim(),
     })
 
+    // 检查后端返回的成功状态
+    if (!response.success) {
+      const errorMsg = response.error || '生成 SQL 失败'
+      errorMessage.value = errorMsg
+      ElMessage.error(errorMsg)
+      return
+    }
+
     generatedSQL.value = response.sql
     generatedExplanation.value = response.explanation || ''
     generatedConfidence.value = response.confidence || 0
 
     ElMessage.success('SQL 生成成功')
+
+    // 自动滚动到 SQL 结果区域
+    nextTick(() => {
+      const sqlCard = document.querySelector('.sql-card')
+      if (sqlCard) {
+        sqlCard.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    })
   } catch (error: unknown) {
     console.error('Failed to generate SQL:', error)
     const msg = error instanceof Error ? error.message : '生成 SQL 失败'
@@ -582,11 +598,47 @@ onMounted(() => {
                 一键运行
               </el-button>
             </div>
+
+            <!-- 生成的 SQL -->
+            <div v-if="generatedSQL" class="generated-sql-section">
+              <div class="sql-header">
+                <span class="sql-title">生成的 SQL</span>
+                <el-tag v-if="generatedConfidence > 0" size="small" :type="generatedConfidence > 0.8 ? 'success' : generatedConfidence > 0.5 ? 'warning' : 'danger'">
+                  置信度: {{ (generatedConfidence * 100).toFixed(1) }}%
+                </el-tag>
+                <div class="sql-actions">
+                  <el-button link size="small" @click="handleCopySQL">
+                    <el-icon><DocumentCopy /></el-icon>
+                    复制
+                  </el-button>
+                  <el-button
+                    type="primary"
+                    size="small"
+                    :loading="executing"
+                    :disabled="!canExecute"
+                    @click="handleExecuteSQL"
+                  >
+                    <el-icon><VideoPlay /></el-icon>
+                    执行
+                  </el-button>
+                </div>
+              </div>
+              <SqlEditor
+                v-model="generatedSQL"
+                height="120px"
+                placeholder="生成的 SQL 将显示在这里..."
+                @run="handleExecuteSQL"
+              />
+              <div v-if="generatedExplanation" class="sql-explanation">
+                <el-icon><InfoFilled /></el-icon>
+                <span>{{ generatedExplanation }}</span>
+              </div>
+            </div>
           </div>
         </el-card>
 
-        <!-- SQL 编辑器 -->
-        <el-card v-if="generatedSQL" shadow="never" class="sql-card">
+        <!-- SQL 编辑器 (保留在卡片外用于显示详细结果) -->
+        <el-card v-if="generatedSQL" shadow="never" class="sql-card" style="display: none;">
           <template #header>
             <div class="card-header">
               <div class="sql-header-left">
@@ -833,6 +885,48 @@ onMounted(() => {
 
           .el-button {
             flex: 1;
+          }
+        }
+
+        .generated-sql-section {
+          margin-top: 16px;
+          padding-top: 16px;
+          border-top: 1px solid var(--el-border-color-light);
+
+          .sql-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+
+            .sql-title {
+              font-weight: 600;
+              font-size: 14px;
+              color: var(--el-text-color-primary);
+            }
+
+            .sql-actions {
+              margin-left: auto;
+              display: flex;
+              gap: 8px;
+            }
+          }
+
+          .sql-explanation {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin-top: 12px;
+            padding: 12px;
+            background: var(--el-color-info-light-9);
+            border-radius: 4px;
+            font-size: 13px;
+            color: var(--el-text-color-regular);
+
+            .el-icon {
+              margin-top: 2px;
+              color: var(--el-color-info);
+            }
           }
         }
       }

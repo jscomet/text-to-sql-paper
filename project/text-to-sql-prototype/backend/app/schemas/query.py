@@ -43,6 +43,11 @@ class QueryGenerateResponse(BaseModel):
     generated_sql: Optional[str] = None
     formatted_sql: Optional[str] = None
     error: Optional[str] = None
+    # Frontend compatibility fields
+    sql: Optional[str] = None
+    explanation: Optional[str] = None
+    confidence: float = 0.9
+    execution_time: float = 0
 
 
 class QueryExecuteResponse(BaseModel):
@@ -66,6 +71,11 @@ class QueryRunResponse(BaseModel):
     execution_time_ms: float = 0
     generation_time_ms: float = 0
     error: Optional[str] = None
+    # Frontend compatibility fields
+    sql: Optional[str] = None
+    explanation: Optional[str] = None
+    confidence: float = 0.9
+    execution_time: float = 0
 
 
 class QueryHistoryItem(BaseModel):

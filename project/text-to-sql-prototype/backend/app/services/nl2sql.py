@@ -29,6 +29,7 @@ async def generate_sql(
     provider: str = "openai",
     model_config: Optional[dict] = None,
     dialect: str = "MySQL",
+    api_key: Optional[str] = None,
 ) -> str:
     """Generate SQL from natural language question.
 
@@ -38,6 +39,7 @@ async def generate_sql(
         provider: LLM provider ('openai' or 'dashscope').
         model_config: Optional model configuration.
         dialect: SQL dialect (MySQL, PostgreSQL, SQLite).
+        api_key: Optional API key for the provider.
 
     Returns:
         Generated SQL query.
@@ -54,7 +56,7 @@ async def generate_sql(
         )
 
         # Get LLM client
-        client = get_llm_client(provider)
+        client = get_llm_client(provider, api_key=api_key)
 
         # Generate SQL
         logger.debug(f"Generating SQL for question: {question}")
