@@ -255,9 +255,45 @@ npm run dev
 - [x] .gitignore 配置完整
 - [x] 依赖版本明确指定
 
-### 文档检查
-- [x] 根目录 README.md 已创建
-- [x] 后端 README.md 已创建
+### 集成测试
+- [x] 后端能导入 main 模块无报错
+- [x] 前端开发服务器能启动并访问
+- [x] 提交集成测试报告
+
+---
+
+## 集成测试计划
+
+### 测试目标
+验证前后端项目基础结构完整，能独立运行。
+
+### 测试方式
+**自动化脚本测试** - 无需启动服务器
+
+```bash
+# 1. 后端导入测试
+cd backend
+source venv/Scripts/activate
+python -c "from app.main import app; print('Backend OK')"
+
+# 2. 前端构建测试
+cd frontend
+npm run build
+
+# 3. 依赖完整性检查
+pip list | grep -E "fastapi|uvicorn|sqlalchemy"
+npm list | grep -E "vue|element-plus|pinia"
+```
+
+### 验收标准
+| 检查项 | 预期结果 |
+|--------|----------|
+| 后端导入 | 无异常抛出 |
+| 前端构建 | 成功，无错误 |
+| 依赖安装 | 所有依赖已安装 |
+
+### 测试报告
+- [x] 已生成 `docs/report/01-Phase1-Setup/report-task1.x-xxx.md`
 
 ---
 

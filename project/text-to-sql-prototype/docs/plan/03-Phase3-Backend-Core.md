@@ -319,12 +319,82 @@ assert "SELECT" in response
 
 ---
 
+## 集成测试计划
+
+### 测试目标
+验证核心业务功能完整：数据库连接管理、Text-to-SQL 流程、评测系统。
+
+### 测试方式
+**1. Python 自动化测试** + **2. curl 手动验证**
+
+#### 测试 1: 数据库连接全流程
+```python
+# test_integration_connections.py
+# 1. 创建数据库连接
+# 2. 测试连接有效性
+# 3. 获取 Schema
+# 4. 执行查询
+# 5. 删除连接
+```
+
+#### 测试 2: Text-to-SQL 端到端
+```bash
+# 1. 创建 SQLite 测试数据库
+curl -X POST http://localhost:8000/api/v1/connections \
+  -H "Authorization: Bearer <token>" \
+  -d '{"name":"test","db_type":"sqlite","database":"test.db"}'
+
+# 2. 执行 NL2SQL
+curl -X POST http://localhost:8000/api/v1/queries \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "connection_id": 1,
+    "nl_question": "查询所有用户",
+    "model": "qwen-turbo"
+  }'
+
+# 3. 验证返回的 SQL 可执行
+```
+
+#### 测试 3: 评测系统
+```python
+# test_integration_eval.py
+# 1. 上传评测数据集
+# 2. 创建评测任务
+# 3. 等待任务完成（轮询状态）
+# 4. 验证 EX 准确率计算
+# 5. 查看详细结果
+```
+
+### 真实运行验证
+- [ ] 使用真实 SQLite 数据库测试
+- [ ] 配置真实 LLM API Key 测试 SQL 生成
+- [ ] 使用 Spider/BIRD 样本数据测试评测
+- [ ] 验证异步任务执行（Celery/BackgroundTasks）
+
+### 验收标准
+| 功能 | 测试场景 | 预期结果 |
+|------|----------|----------|
+| 数据库连接 | CRUD + Schema 获取 | 200 OK，Schema 完整 |
+| Text-to-SQL | NL 问题 → SQL → 执行结果 | 生成可执行 SQL，返回正确结果 |
+| SQL 执行 | 超时/错误处理 | 超时返回 504，错误返回 400 |
+| 评测系统 | 创建任务 → 执行 → 结果 | 异步完成，EX 计算准确 |
+| LLM 服务 | 多提供商切换 | 支持 OpenAI/DashScope |
+
+### 测试报告
+- [ ] 已生成 `docs/report/03-Phase3-Backend/report-task3.x-xxx.md`
+- [ ] 包含测试截图（Schema 获取、SQL 生成结果）
+- [ ] 包含性能数据（SQL 生成耗时、执行耗时）
+
+---
+
 ## 进入下一阶段条件
 
 1. ✅ 所有Task完成
 2. ✅ 数据库连接、SQL生成、评测功能可用
 3. ✅ 异步任务（Celery）能正常工作
 4. ✅ 代码通过review
+5. ✅ 集成测试全部通过
 
 ---
 

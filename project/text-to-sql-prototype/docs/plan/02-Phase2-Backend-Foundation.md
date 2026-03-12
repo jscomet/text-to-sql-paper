@@ -329,6 +329,58 @@ curl http://localhost:8000/docs
 
 ---
 
+## 集成测试计划
+
+### 测试目标
+验证后端基础架构完整，认证系统、数据库、核心配置全部正常工作。
+
+### 测试方式
+**Python 自动化测试脚本** - 使用 FastAPI TestClient
+
+**测试文件**: `backend/test_api_demo.py`
+
+```python
+# 测试内容
+1. 健康检查 (GET /health)
+2. 用户注册 (POST /api/v1/auth/register)
+3. 用户登录 (POST /api/v1/auth/login) → 获取 JWT Token
+4. 获取用户信息 (GET /api/v1/auth/me) → 使用 Token
+5. 未认证访问 → 验证 401
+6. 错误密码 → 验证 401
+7. 重复注册 → 验证 400
+8. 用户登出 (POST /api/v1/auth/logout)
+```
+
+### 运行测试
+```bash
+cd backend
+source venv/Scripts/activate
+python test_api_demo.py
+```
+
+### 验收标准
+| 测试项 | 预期结果 |
+|--------|----------|
+| 健康检查 | 200, status: healthy |
+| 用户注册 | 201, 返回用户数据 |
+| 用户登录 | 200, 返回 access_token |
+| 获取用户信息 | 200, 返回当前用户 |
+| 未认证访问 | 401, detail: Not authenticated |
+| 错误密码 | 401, detail: Incorrect username or password |
+| 重复注册 | 400, detail: Username already registered |
+| 用户登出 | 200, message: Successfully logged out |
+
+### 真实运行演示
+- [x] 已执行测试脚本，全部 8 个测试通过
+- [x] 已验证 JWT Token 生成与验证
+- [x] 已验证数据库表创建（9 个表）
+- [x] 已生成测试报告
+
+### 测试报告
+- [x] 已生成 `docs/report/02-Phase2-Backend/report-task2.x-backend-foundation.md`
+
+---
+
 ## 进入下一阶段条件
 
 1. ✅ Task 2.1、2.2、2.3 全部完成

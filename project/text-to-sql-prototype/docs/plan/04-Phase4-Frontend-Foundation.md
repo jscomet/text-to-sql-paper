@@ -238,12 +238,87 @@ expect(userStore.token).toBeTruthy()
 
 ---
 
+## 集成测试计划
+
+### 测试目标
+验证前端基础架构完整：路由、状态管理、HTTP 客户端、布局组件。
+
+### 测试方式
+**浏览器访问 + 开发者工具检查**
+
+#### 测试 1: 路由系统
+```
+1. 访问 http://localhost:5173/login
+   → 显示登录页面
+2. 未登录访问 http://localhost:5173/query
+   → 重定向到 /login
+3. 登录后访问 http://localhost:5173/query
+   → 正常显示查询页面
+```
+
+#### 测试 2: 状态管理
+```typescript
+// 在浏览器控制台测试
+// 1. 登录后检查 Pinia store
+import { useUserStore } from '@/stores/user'
+const store = useUserStore()
+console.log(store.token)  // 应有值
+console.log(store.userInfo)  // 应有用户信息
+
+// 2. 刷新页面
+// 3. 检查 token 是否持久化（localStorage）
+```
+
+#### 测试 3: HTTP 客户端
+```typescript
+// 在浏览器控制台测试
+import request from '@/utils/request'
+request.get('/health').then(r => console.log(r))
+// 应自动携带 Authorization header
+```
+
+#### 测试 4: 布局组件
+```
+1. 登录后查看主布局
+   → Sidebar 显示导航菜单
+   → Header 显示用户信息
+   → Content 区域显示页面内容
+2. 点击 Sidebar 菜单
+   → 路由跳转正确
+   → 菜单高亮正确
+```
+
+### 真实运行验证
+- [ ] 前端开发服务器启动无报错
+- [ ] 浏览器访问各页面正常渲染
+- [ ] 登录后 token 存储到 localStorage
+- [ ] API 请求自动携带 token
+- [ ] 401 响应自动跳转登录页
+
+### 验收标准
+| 功能 | 测试方法 | 预期结果 |
+|------|----------|----------|
+| 路由守卫 | 直接访问需要登录的页面 | 跳转到登录页 |
+| 登录流程 | 输入账号密码点击登录 | 登录成功，跳转首页，存储 token |
+| Token 持久化 | 刷新页面 | 保持登录状态 |
+| API 请求 | 调用需要认证的接口 | 自动携带 Authorization header |
+| 布局显示 | 查看主布局 | Sidebar + Header + Content 正常显示 |
+| 响应式 | 调整浏览器窗口大小 | 布局自适应 |
+
+### 测试报告
+- [ ] 已生成 `docs/report/04-Phase4-Frontend/report-task4.x-xxx.md`
+- [ ] 包含各页面截图
+- [ ] 包含开发者工具 Network 面板截图（验证请求头）
+
+---
+
 ## 进入下一阶段条件
 
 1. ✅ 路由、状态管理、组件全部完成
 2. ✅ 能正常登录并访问各页面
 3. ✅ 能正常调用后端API
 4. ✅ 代码通过review
+5. ✅ 集成测试全部通过（浏览器访问验证）
 
 ---
 

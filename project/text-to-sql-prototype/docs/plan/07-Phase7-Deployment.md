@@ -322,6 +322,90 @@ curl http://prometheus:9090/api/v1/query?query=up
 
 ---
 
+## 部署验证测试计划
+
+### 测试目标
+验证生产环境部署成功，所有服务正常运行，可对外提供服务。
+
+### 测试方式
+**Docker 本地验证** + **生产环境冒烟测试**
+
+#### 测试 1: Docker 本地构建验证
+```bash
+# 1. 构建镜像
+docker-compose build
+
+# 2. 启动服务
+docker-compose up -d
+
+# 3. 健康检查
+curl http://localhost/health
+curl http://localhost/api/v1/health
+
+# 4. 功能验证（使用测试脚本）
+python test_production.py --base-url http://localhost
+
+# 5. 停止服务
+docker-compose down
+```
+
+#### 测试 2: 生产环境冒烟测试
+```bash
+# 部署后验证
+#!/bin/bash
+# smoke-test.sh
+
+BASE_URL="https://your-domain.com"
+
+# 1. 健康检查
+curl -sf ${BASE_URL}/health || exit 1
+
+# 2. API 可用性
+curl -sf ${BASE_URL}/api/v1/health || exit 1
+
+# 3. 前端页面
+curl -sf ${BASE_URL} | grep -q "Text-to-SQL" || exit 1
+
+echo "Smoke test passed!"
+```
+
+#### 测试 3: 核心功能验证
+```bash
+# 生产环境功能测试
+# 1. 用户注册/登录
+# 2. 创建数据库连接
+# 3. 执行 Text-to-SQL 查询
+# 4. 运行评测任务
+# 使用生产环境测试账号，不触碰真实数据
+```
+
+### 验收标准
+| 检查项 | 验证方式 | 预期结果 |
+|--------|----------|----------|
+| 容器启动 | docker ps | 所有容器状态 Up |
+| 健康检查 | curl /health | 200 OK |
+| API 可用 | curl /api/v1/health | 200 OK |
+| 前端访问 | 浏览器访问 | 页面正常显示 |
+| HTTPS | SSL Labs 测试 | A 级以上 |
+| 性能 | 压测工具 | 响应时间达标 |
+| 监控 | Grafana | 数据正常采集 |
+
+### 回滚测试
+```bash
+# 测试回滚流程
+./scripts/deploy.sh v1.0.0  # 部署旧版本
+./scripts/rollback.sh       # 执行回滚
+```
+
+### 测试报告
+- [ ] 已生成 `docs/report/07-Phase7-Deployment/report-task7.x-xxx.md`
+- [ ] 包含部署步骤截图
+- [ ] 包含健康检查结果
+- [ ] 包含监控面板截图
+- [ ] 包含回滚测试结果
+
+---
+
 ## 项目交付完成标准
 
 1. ✅ 所有阶段完成
