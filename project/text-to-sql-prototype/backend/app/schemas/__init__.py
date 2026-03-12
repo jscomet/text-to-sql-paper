@@ -1,4 +1,53 @@
 """Pydantic schemas package."""
+from app.schemas.api_key import (
+    APIKeyBase,
+    APIKeyCreate,
+    APIKeyDecryptRequest,
+    APIKeyDecryptResponse,
+    APIKeyInDB,
+    APIKeyListResponse,
+    APIKeyResponse,
+    APIKeyUpdate,
+)
+from app.schemas.connection import (
+    ColumnSchema,
+    ForeignKeySchema,
+    TableSchema,
+    ConnectionBase,
+    ConnectionCreate,
+    ConnectionUpdate,
+    ConnectionInDB,
+    ConnectionResponse,
+    ConnectionTestRequest,
+    ConnectionTestResponse,
+    SchemaResponse,
+    SchemaRefreshResponse,
+)
+from app.schemas.evaluation import (
+    EvalTaskCreate,
+    EvalTaskUpdate,
+    EvalTaskResponse,
+    EvalTaskListResponse,
+    EvalResultResponse,
+    EvalResultListResponse,
+    EvalProgressResponse,
+    EvalStatsResponse,
+    DatasetQuestion,
+    DatasetLoadResponse,
+    EvalTaskStats,
+)
+from app.schemas.query import (
+    QueryGenerateRequest,
+    QueryExecuteRequest,
+    QueryRunRequest,
+    QueryGenerateResponse,
+    QueryExecuteResponse,
+    QueryRunResponse,
+    QueryHistoryItem,
+    QueryHistoryListResponse,
+    QueryResultData,
+    ToggleFavoriteResponse,
+)
 from app.schemas.user import (
     UserBase,
     UserCreate,
@@ -13,6 +62,7 @@ from app.schemas.user import (
 )
 
 __all__ = [
+    # User schemas
     "UserBase",
     "UserCreate",
     "UserUpdate",
@@ -23,4 +73,49 @@ __all__ = [
     "Token",
     "TokenWithUser",
     "TokenPayload",
+    # Connection schemas
+    "ColumnSchema",
+    "ForeignKeySchema",
+    "TableSchema",
+    "ConnectionBase",
+    "ConnectionCreate",
+    "ConnectionUpdate",
+    "ConnectionInDB",
+    "ConnectionResponse",
+    "ConnectionTestRequest",
+    "ConnectionTestResponse",
+    "SchemaResponse",
+    "SchemaRefreshResponse",
+    # API Key schemas
+    "APIKeyBase",
+    "APIKeyCreate",
+    "APIKeyUpdate",
+    "APIKeyInDB",
+    "APIKeyResponse",
+    "APIKeyListResponse",
+    "APIKeyDecryptRequest",
+    "APIKeyDecryptResponse",
+    # Query schemas
+    "QueryGenerateRequest",
+    "QueryExecuteRequest",
+    "QueryRunRequest",
+    "QueryGenerateResponse",
+    "QueryExecuteResponse",
+    "QueryRunResponse",
+    "QueryHistoryItem",
+    "QueryHistoryListResponse",
+    "QueryResultData",
+    "ToggleFavoriteResponse",
+    # Evaluation schemas
+    "EvalTaskCreate",
+    "EvalTaskUpdate",
+    "EvalTaskResponse",
+    "EvalTaskListResponse",
+    "EvalResultResponse",
+    "EvalResultListResponse",
+    "EvalProgressResponse",
+    "EvalStatsResponse",
+    "DatasetQuestion",
+    "DatasetLoadResponse",
+    "EvalTaskStats",
 ]

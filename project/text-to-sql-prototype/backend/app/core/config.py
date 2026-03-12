@@ -29,9 +29,18 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
     algorithm: str = "HS256"
 
-    # LLM APIs
+    # LLM APIs - OpenAI
     openai_api_key: Optional[str] = None
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_model: str = "gpt-3.5-turbo"
+
+    # LLM APIs - DashScope (Alibaba)
     dashscope_api_key: Optional[str] = None
+    dashscope_model: str = "qwen2.5-coder-32b-instruct"
+    dashscope_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+
+    # API Key Encryption
+    api_key_encryption_key: str = "your-encryption-key-change-in-production"
 
     # Logging
     log_level: str = "INFO"
