@@ -9,6 +9,7 @@ from app.api.deps import get_current_active_user
 from app.core.database import get_db
 from app.models.db_connection import DBConnection
 from app.models.user import User
+from app.schemas.common import PaginatedResponse, PaginationInfo
 from app.schemas.connection import (
     ConnectionCreate,
     ConnectionResponse,
@@ -24,11 +25,11 @@ from app.services.schema import SchemaService
 router = APIRouter(prefix="/connections", tags=["Connections"])
 
 
-@router.get("", response_model=list[ConnectionResponse])
+@router.get("", response_model=PaginatedResponse[ConnectionResponse])
 async def list_connections(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-) -> list[DBConnection]:
+) -> PaginatedResponse[ConnectionResponse]:
     """Get all database connections for the current user.
 
     Args:
@@ -36,13 +37,22 @@ async def list_connections(
         current_user: Current authenticated user.
 
     Returns:
-        List of database connections.
+        Paginated list of database connections.
     """
     result = await db.execute(
         select(DBConnection).where(DBConnection.user_id == current_user.id)
     )
     connections = result.scalars().all()
-    return list(connections)
+    connection_list = list(connections)
+    total = len(connection_list)
+
+    return PaginatedResponse(
+        list=connection_list,
+        pagination=PaginationInfo(
+            total=total,
+            total_pages=1,  # Currently no pagination, all results in one page
+        ),
+    )
 
 
 @router.post("", response_model=ConnectionResponse, status_code=status.HTTP_201_CREATED)

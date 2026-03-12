@@ -1,4 +1,8 @@
 """Pydantic schemas package."""
+from app.schemas.common import (
+    PaginatedResponse,
+    PaginationInfo,
+)
 from app.schemas.api_key import (
     APIKeyBase,
     APIKeyCreate,
@@ -62,6 +66,9 @@ from app.schemas.user import (
 )
 
 __all__ = [
+    # Common schemas
+    "PaginatedResponse",
+    "PaginationInfo",
     # User schemas
     "UserBase",
     "UserCreate",
