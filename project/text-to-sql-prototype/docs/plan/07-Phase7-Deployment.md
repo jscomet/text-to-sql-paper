@@ -16,7 +16,18 @@ devops (Task 7.1)               devops (Task 7.2)               devops (Task 7.3
     ├── Docker配置                   ├── CI/CD配置                    ├── 生产部署
     ├── docker-compose.yml           └── GitHub Actions              └── 监控配置
     └── 镜像优化
+
+Test Agent (Task 7.4)
+    │
+    ├── 执行：部署验证测试
+    ├── 验证：Docker本地构建 + 生产环境冒烟测试
+    ├── 验证：容器启动、健康检查、API可用性、前端访问、HTTPS、性能、监控
+    └── 反馈：测试问题报告（如测试失败）
 ```
+
+**依赖关系**:
+- Task 7.1、7.2、7.3 有依赖关系（顺序执行）
+- Task 7.4 依赖 Task 7.3 完成
 
 ---
 
@@ -296,6 +307,7 @@ curl http://prometheus:9090/api/v1/query?query=up
 | 生产配置 | `.env.production` | 配置完整，安全 |
 | 监控配置 | `monitoring/` | 监控数据正常，告警有效 |
 | 运维文档 | `docs/OPERATIONS.md` | 完整可执行 |
+| 部署验证测试报告 | `docs/report/07-Phase7-Deployment/` | Test Agent输出，所有测试通过 |
 
 ---
 
@@ -319,6 +331,18 @@ curl http://prometheus:9090/api/v1/query?query=up
 - [ ] 恢复流程测试通过
 - [ ] 回滚流程测试通过
 - [ ] 运维文档完整
+
+### 测试检查（Test Agent负责）
+- [ ] Docker本地构建验证通过
+- [ ] 容器启动和健康检查通过
+- [ ] API可用性和前端访问测试通过
+- [ ] HTTPS配置验证通过（SSL Labs A级以上）
+- [ ] 性能测试达标
+- [ ] 监控数据采集验证通过
+- [ ] 生产环境冒烟测试通过
+- [ ] 核心功能端到端测试通过
+- [ ] 回滚流程测试通过
+- [ ] 部署验证测试报告已生成
 
 ---
 
@@ -406,6 +430,144 @@ echo "Smoke test passed!"
 
 ---
 
+### Task 7.4: 部署验证测试（Test Agent负责）
+**负责人**: `tester` (Test Agent)
+**依赖**: Task 7.1、7.2、7.3 全部完成
+**测试目标**: 验证生产环境部署成功，所有服务正常运行，可对外提供服务
+
+#### 测试方式
+**Docker 本地验证** + **生产环境冒烟测试**
+
+#### 测试 1: Docker 本地构建验证
+```bash
+# 1. 构建镜像
+docker-compose build
+
+# 2. 启动服务
+docker-compose up -d
+
+# 3. 健康检查
+curl http://localhost/health
+curl http://localhost/api/v1/health
+
+# 4. 功能验证（使用测试脚本）
+python test_production.py --base-url http://localhost
+
+# 5. 停止服务
+docker-compose down
+```
+
+#### 测试 2: 生产环境冒烟测试
+```bash
+# 部署后验证
+#!/bin/bash
+# smoke-test.sh
+
+BASE_URL="https://your-domain.com"
+
+# 1. 健康检查
+curl -sf ${BASE_URL}/health || exit 1
+
+# 2. API 可用性
+curl -sf ${BASE_URL}/api/v1/health || exit 1
+
+# 3. 前端页面
+curl -sf ${BASE_URL} | grep -q "Text-to-SQL" || exit 1
+
+echo "Smoke test passed!"
+```
+
+#### 测试 3: 核心功能验证
+```bash
+# 生产环境功能测试
+# 1. 用户注册/登录
+# 2. 创建数据库连接
+# 3. 执行 Text-to-SQL 查询
+# 4. 运行评测任务
+# 使用生产环境测试账号，不触碰真实数据
+```
+
+#### 验收标准
+| 检查项 | 验证方式 | 预期结果 |
+|--------|----------|----------|
+| 容器启动 | docker ps | 所有容器状态 Up |
+| 健康检查 | curl /health | 200 OK |
+| API 可用 | curl /api/v1/health | 200 OK |
+| 前端访问 | 浏览器访问 | 页面正常显示 |
+| HTTPS | SSL Labs 测试 | A 级以上 |
+| 性能 | 压测工具 | 响应时间达标 |
+| 监控 | Grafana | 数据正常采集 |
+
+#### 测试反馈机制
+```
+Test Agent 执行部署验证测试
+    │
+    ├─ 全部测试通过
+    │     → 更新检查点
+    │     → 输出测试报告 docs/report/07-Phase7-Deployment/
+    │     → 包含：部署验证结果、性能数据、监控截图
+    │     → 通知Leader测试通过，项目可交付
+    │
+    └─ 测试失败
+          → 向 devops 发送错误报告：
+            【测试反馈】Task 7.X - 部署验证测试未通过
+
+            测试项: [Docker本地验证/生产环境冒烟测试/核心功能验证]
+            具体检查项: [容器启动/健康检查/API可用性/前端访问/HTTPS/性能/监控]
+            状态: ❌ 失败
+
+            预期结果:
+            [期望的部署状态/服务行为]
+
+            实际结果:
+            [实际的部署状态/服务行为]
+
+            错误信息:
+            ```
+            [容器日志/错误响应/堆栈跟踪]
+            ```
+
+            复现步骤:
+            1. [步骤1]
+            2. [步骤2]
+            3. [步骤3]
+
+            相关配置位置:
+            - 文件: [Dockerfile/docker-compose.yml/部署脚本路径]
+            - 配置项: [具体配置项名称]
+
+            请修复后回复此消息，Test Agent将重新测试。
+
+          → devops 修复部署配置问题
+          → Test Agent 重新测试
+          → 循环直到全部通过
+```
+
+#### 回滚测试
+```bash
+# 测试回滚流程
+./scripts/deploy.sh v1.0.0  # 部署旧版本
+./scripts/rollback.sh       # 执行回滚
+```
+
+#### 真实运行验证
+- [ ] Docker本地构建成功，容器正常启动
+- [ ] 生产环境部署成功，服务可访问
+- [ ] 健康检查端点全部通过
+- [ ] HTTPS证书配置正确，SSL评级A级以上
+- [ ] 监控数据正常采集，告警可触发
+- [ ] 备份任务正常运行
+- [ ] 回滚流程测试通过
+
+#### 测试报告
+- [ ] 已生成 `docs/report/07-Phase7-Deployment/report-task7.4-deployment-test.md`
+- [ ] 包含部署步骤截图
+- [ ] 包含健康检查结果
+- [ ] 包含监控面板截图
+- [ ] 包含回滚测试结果
+
+---
+
 ## 项目交付完成标准
 
 1. ✅ 所有阶段完成
@@ -414,6 +576,9 @@ echo "Smoke test passed!"
 4. ✅ 文档齐全（开发文档+运维文档）
 5. ✅ 代码已合并到main分支
 6. ✅ 已打版本标签
+7. ✅ **Test Agent 最终验证通过**（部署验证测试全部通过）
+8. ✅ **生产环境可正常访问**，核心功能端到端测试通过
+9. ✅ **部署验证测试报告已生成**并归档
 
 ---
 

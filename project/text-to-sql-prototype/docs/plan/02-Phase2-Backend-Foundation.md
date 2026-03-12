@@ -14,20 +14,21 @@
 ## Agent 协作关系
 
 ```
-database-dev (Task 2.1)
-    ├── 创建：数据库模型
-    └── 输出：models/*.py, 迁移脚本
+database-dev (Task 2.1)         auth-dev (Task 2.2)             backend-dev (Task 2.3)
+    │                               │                               │
+    ├── 创建：数据库模型            ├── 创建：JWT认证、用户API        ├── 创建：核心配置、日志、异常处理
+    └── 输出：models/*.py, 迁移脚本  └── 输出：auth相关代码           └── 输出：core/*, main.py
 
-auth-dev (Task 2.2)
-    ├── 依赖：Task 2.1 完成
-    ├── 创建：JWT认证、用户API
-    └── 输出：auth相关代码
-
-backend-dev (Task 2.3)
-    ├── 并行：与 2.1、2.2 同时进行
-    ├── 创建：核心配置、日志、异常处理
-    └── 输出：core/*, main.py
+Test Agent (Task 2.4)
+    │
+    ├── 执行：集成测试
+    ├── 验证：所有API功能
+    └── 反馈：问题报告（如测试失败）
 ```
+
+**依赖关系**:
+- Task 2.1、2.2、2.3 可并行执行（2.2依赖2.1的用户模型）
+- Task 2.4 依赖 2.1、2.2、2.3 全部完成
 
 ---
 
@@ -157,7 +158,7 @@ backend-dev (Task 2.3)
 - [x] Alembic能生成迁移脚本
 - [x] `alembic upgrade head` 能成功创建表
 
-#### 测试点
+#### 自测点
 ```python
 # 测试数据库连接和表创建
 from app.models import User, DBConnection
@@ -210,7 +211,7 @@ assert 'db_connections' in tables
 - [x] 登录接口能返回有效token
 - [x] 受保护接口需要认证
 
-#### 测试点
+#### 自测点
 ```bash
 # 测试注册
 curl -X POST http://localhost:8000/api/v1/auth/register \
@@ -280,7 +281,7 @@ curl http://localhost:8000/api/v1/auth/me \
 - [x] 响应格式统一
 - [x] 服务能正常启动
 
-#### 测试点
+#### 自测点
 ```bash
 # 启动服务
 cd backend
@@ -295,6 +296,93 @@ curl http://localhost:8000/docs
 
 ---
 
+### Task 2.4: 集成测试（Test Agent负责）
+**负责人**: `tester` (Test Agent)
+**依赖**: Task 2.1、2.2、2.3 全部完成
+**测试目标**: 验证后端基础架构完整，认证系统、数据库、核心配置全部正常工作
+
+#### 测试方式
+**Python 自动化测试脚本** - 使用 FastAPI TestClient
+
+**测试文件**: `backend/test_api_demo.py`
+
+```python
+# 测试内容
+1. 健康检查 (GET /health)
+2. 用户注册 (POST /api/v1/auth/register)
+3. 用户登录 (POST /api/v1/auth/login) → 获取 JWT Token
+4. 获取用户信息 (GET /api/v1/auth/me) → 使用 Token
+5. 未认证访问 → 验证 401
+6. 错误密码 → 验证 401
+7. 重复注册 → 验证 400
+8. 用户登出 (POST /api/v1/auth/logout)
+```
+
+#### 运行测试
+```bash
+cd backend
+source venv/Scripts/activate
+python test_api_demo.py
+```
+
+#### 验收标准
+| 测试项 | 预期结果 |
+|--------|----------|
+| 健康检查 | 200, status: healthy |
+| 用户注册 | 201, 返回用户数据 |
+| 用户登录 | 200, 返回 access_token |
+| 获取用户信息 | 200, 返回当前用户 |
+| 未认证访问 | 401, detail: Not authenticated |
+| 错误密码 | 401, detail: Incorrect username or password |
+| 重复注册 | 400, detail: Username already registered |
+| 用户登出 | 200, message: Successfully logged out |
+
+#### 测试反馈机制
+```
+Test Agent 执行集成测试
+    │
+    ├─ 全部测试通过
+    │     → 更新检查点
+    │     → 输出测试报告 docs/report/02-Phase2-Backend/
+    │     → 通知Leader测试通过
+    │
+    └─ 测试失败
+          → 向对应开发Agent发送错误报告：
+            【测试反馈】Task 2.X - 测试未通过
+
+            测试项: [具体测试项]
+            状态: ❌ 失败
+
+            预期结果: [期望的行为]
+            实际结果: [实际的行为]
+
+            错误信息:
+            ```
+            [详细错误日志]
+            ```
+
+            复现步骤:
+            1. [步骤1]
+            2. [步骤2]
+
+            请修复后通知Test Agent重新测试。
+
+          → 开发Agent修复问题
+          → Test Agent 重新测试
+          → 循环直到全部通过
+```
+
+#### 真实运行验证
+- [ ] 已执行测试脚本，全部 8 个测试通过
+- [ ] 已验证 JWT Token 生成与验证
+- [ ] 已验证数据库表创建（9 个表）
+- [ ] 已生成测试报告
+
+#### 测试报告
+- [ ] 已生成 `docs/report/02-Phase2-Backend/report-task2.x-backend-foundation.md`
+
+---
+
 ## 阶段交付物
 
 | 交付物 | 位置 | 验收标准 |
@@ -305,6 +393,7 @@ curl http://localhost:8000/docs
 | 认证API | `app/api/v1/auth.py` | 4个接口可用 |
 | 核心配置 | `app/core/*.py` | 日志、异常、数据库正常 |
 | 主入口 | `app/main.py` | 服务可启动 |
+| 集成测试报告 | `docs/report/02-Phase2-Backend/` | Test Agent输出，所有测试通过 |
 
 ---
 
@@ -323,70 +412,21 @@ curl http://localhost:8000/docs
 - [x] JWT有过期时间
 - [x] 敏感信息不出现在日志中
 
-### 测试检查
+### 测试检查（Test Agent负责）
 - [x] 应用能正常加载
 - [x] 数据库迁移正常
-
----
-
-## 集成测试计划
-
-### 测试目标
-验证后端基础架构完整，认证系统、数据库、核心配置全部正常工作。
-
-### 测试方式
-**Python 自动化测试脚本** - 使用 FastAPI TestClient
-
-**测试文件**: `backend/test_api_demo.py`
-
-```python
-# 测试内容
-1. 健康检查 (GET /health)
-2. 用户注册 (POST /api/v1/auth/register)
-3. 用户登录 (POST /api/v1/auth/login) → 获取 JWT Token
-4. 获取用户信息 (GET /api/v1/auth/me) → 使用 Token
-5. 未认证访问 → 验证 401
-6. 错误密码 → 验证 401
-7. 重复注册 → 验证 400
-8. 用户登出 (POST /api/v1/auth/logout)
-```
-
-### 运行测试
-```bash
-cd backend
-source venv/Scripts/activate
-python test_api_demo.py
-```
-
-### 验收标准
-| 测试项 | 预期结果 |
-|--------|----------|
-| 健康检查 | 200, status: healthy |
-| 用户注册 | 201, 返回用户数据 |
-| 用户登录 | 200, 返回 access_token |
-| 获取用户信息 | 200, 返回当前用户 |
-| 未认证访问 | 401, detail: Not authenticated |
-| 错误密码 | 401, detail: Incorrect username or password |
-| 重复注册 | 400, detail: Username already registered |
-| 用户登出 | 200, message: Successfully logged out |
-
-### 真实运行演示
-- [x] 已执行测试脚本，全部 8 个测试通过
-- [x] 已验证 JWT Token 生成与验证
-- [x] 已验证数据库表创建（9 个表）
-- [x] 已生成测试报告
-
-### 测试报告
-- [x] 已生成 `docs/report/02-Phase2-Backend/report-task2.x-backend-foundation.md`
+- [ ] Test Agent集成测试通过（全部8个测试）
+- [ ] 测试报告已生成
 
 ---
 
 ## 进入下一阶段条件
 
 1. ✅ Task 2.1、2.2、2.3 全部完成
-2. ✅ 数据库能正常连接和操作
-3. ✅ 认证流程完整可用
-4. ✅ 代码通过review
+2. ✅ Task 2.4 集成测试全部通过（Test Agent确认）
+3. ✅ 数据库能正常连接和操作
+4. ✅ 认证流程完整可用
+5. ✅ 代码通过review
 
 ---
 

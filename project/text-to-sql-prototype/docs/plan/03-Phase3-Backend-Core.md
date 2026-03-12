@@ -20,15 +20,18 @@ backend-dev (Task 3.1)          backend-dev (Task 3.2)          backend-dev (Tas
     ├── Schema获取                  ├── SQL执行服务                 ├── EX准确率计算
     └── 连接池管理                  └── 结果格式化                  └── 多数投票算法
 
-Task 3.4 (LLM服务集成)
-    │
-    └── OpenAI/DashScope客户端
-    └── Prompt模板管理
+Task 3.4 (LLM服务集成)            Test Agent (Task 3.5)
+    │                               │
+    └── OpenAI/DashScope客户端      ├── 执行核心业务集成测试
+    └── Prompt模板管理              ├── 验证Text-to-SQL流程
+                                    ├── 验证评测系统
+                                    └── 反馈问题并跟踪修复
 ```
 
 **依赖关系**:
 - Task 3.1、3.2、3.3 可并行执行
 - Task 3.4 被 3.2 和 3.3 依赖
+- Task 3.5 依赖 3.1、3.2、3.3、3.4 全部完成
 
 ---
 
@@ -73,7 +76,7 @@ Task 3.4 (LLM服务集成)
 - [x] 密码加密存储
 - [x] 连接池管理正确
 
-#### 测试点
+#### 自测点
 ```bash
 # 测试创建连接
 curl -X POST http://localhost:8000/api/v1/connections \
@@ -145,7 +148,7 @@ curl http://localhost:8000/api/v1/connections/1/schema \
 - [x] 查询历史正确保存
 - [x] DDL语句被阻止
 
-#### 测试点
+#### 自测点
 ```bash
 # 测试生成SQL
 curl -X POST http://localhost:8000/api/v1/queries/generate \
@@ -220,7 +223,7 @@ curl -X POST http://localhost:8000/api/v1/queries/execute \
 - [x] 进度实时更新
 - [x] EX准确率计算正确
 
-#### 测试点
+#### 自测点
 ```bash
 # 创建评测任务
 curl -X POST http://localhost:8000/api/v1/eval/tasks \
@@ -274,7 +277,7 @@ curl http://localhost:8000/api/v1/eval/tasks/1/stats \
 - [x] API密钥加密存储
 - [x] 调用失败有重试机制
 
-#### 测试点
+#### 自测点
 ```python
 # 测试LLM客户端
 from app.services.llm import OpenAIClient
@@ -286,48 +289,12 @@ assert "SELECT" in response
 
 ---
 
-## 阶段交付物
+### Task 3.5: 核心业务集成测试（Test Agent负责）
+**负责人**: `tester` (Test Agent)
+**依赖**: Task 3.1、3.2、3.3、3.4 全部完成
+**测试目标**: 验证核心业务功能完整：数据库连接管理、Text-to-SQL 流程、评测系统
 
-| 交付物 | 位置 | 验收标准 |
-|--------|------|----------|
-| 数据库连接管理 | `app/services/connection.py`, `api/v1/connections.py` | 8个API可用，Schema获取正确 |
-| Text-to-SQL服务 | `app/services/nl2sql.py`, `sql_executor.py` | SQL生成和执行正常 |
-| 评测系统 | `app/services/evaluator.py`, `tasks/eval_tasks.py` | EX计算准确，任务异步执行 |
-| LLM服务 | `app/services/llm.py` | 支持多提供商 |
-| API密钥管理 | `app/api/v1/api_keys.py` | 密钥增删查正常 |
-
----
-
-## 阶段检查清单
-
-### 功能检查
-- [x] 数据库连接CRUD功能完整
-- [x] Schema能正确获取
-- [x] SQL生成能调用LLM
-- [x] SQL执行有超时保护
-- [x] 评测任务能异步运行
-- [x] EX准确率计算正确
-- [x] 多数投票算法正确
-
-### 代码检查
-- [x] SQL有安全过滤
-- [x] 密码/API密钥加密
-- [x] 异步操作正确
-- [x] 有适当的错误处理
-
-### 测试检查
-- [x] 单元测试覆盖核心逻辑
-- [x] 集成测试覆盖API
-- [x] 评测算法测试通过
-
----
-
-## 集成测试计划
-
-### 测试目标
-验证核心业务功能完整：数据库连接管理、Text-to-SQL 流程、评测系统。
-
-### 测试方式
+#### 测试方式
 **1. Python 自动化测试** + **2. curl 手动验证**
 
 #### 测试 1: 数据库连接全流程
@@ -369,18 +336,7 @@ curl -X POST http://localhost:8000/api/v1/queries \
 # 5. 查看详细结果
 ```
 
-### 真实运行验证
-- [x] 使用真实 SQLite 数据库测试
-- [x] 配置真实 LLM API Key 测试 SQL 生成
-- [x] 使用 Spider/BIRD 样本数据测试评测
-
-### 集成测试报告
-- [x] 已生成 `docs/report/03-Phase3-Backend/report-task3.x-backend-core.md`
-- [x] 测试覆盖所有核心功能
-- [x] 12个单元测试 + 8个API测试全部通过
-- [ ] 验证异步任务执行（Celery/BackgroundTasks）
-
-### 验收标准
+#### 验收标准
 | 功能 | 测试场景 | 预期结果 |
 |------|----------|----------|
 | 数据库连接 | CRUD + Schema 获取 | 200 OK，Schema 完整 |
@@ -389,22 +345,109 @@ curl -X POST http://localhost:8000/api/v1/queries \
 | 评测系统 | 创建任务 → 执行 → 结果 | 异步完成，EX 计算准确 |
 | LLM 服务 | 多提供商切换 | 支持 OpenAI/DashScope |
 
-### 测试报告
-- [ ] 已生成 `docs/report/03-Phase3-Backend/report-task3.x-xxx.md`
+#### 测试反馈机制
+```
+Test Agent 执行核心业务集成测试
+    │
+    ├─ 全部测试通过
+    │     → 更新检查点
+    │     → 输出测试报告 docs/report/03-Phase3-Backend/
+    │     → 包含：测试覆盖率、性能数据、问题列表
+    │     → 通知Leader测试通过
+    │
+    └─ 测试失败
+          → 向 backend-dev 发送错误报告：
+            【测试反馈】核心业务测试 - 测试未通过
+
+            测试项: [数据库连接/Text-to-SQL/评测系统]
+            具体功能: [具体测试的功能点]
+            状态: ❌ 失败
+
+            预期结果:
+            [期望的API响应/行为]
+
+            实际结果:
+            [实际的API响应/行为]
+
+            错误信息:
+            ```
+            [API响应/错误日志/堆栈跟踪]
+            ```
+
+            复现步骤:
+            1. [步骤1]
+            2. [步骤2]
+            3. [步骤3]
+
+            相关代码位置:
+            - 文件: [文件路径]
+            - 函数: [函数名]
+
+            请修复后回复此消息，Test Agent将重新测试。
+
+          → backend-dev 修复问题
+          → Test Agent 重新测试
+          → 循环直到全部通过
+```
+
+#### 真实运行验证
+- [ ] 使用真实 SQLite 数据库测试
+- [ ] 配置真实 LLM API Key 测试 SQL 生成
+- [ ] 使用 Spider/BIRD 样本数据测试评测
+
+#### 测试报告
+- [ ] 已生成 `docs/report/03-Phase3-Backend/report-task3.x-backend-core.md`
 - [ ] 包含测试截图（Schema 获取、SQL 生成结果）
 - [ ] 包含性能数据（SQL 生成耗时、执行耗时）
 
 ---
 
+## 阶段交付物
+
+| 交付物 | 位置 | 验收标准 |
+|--------|------|----------|
+| 数据库连接管理 | `app/services/connection.py`, `api/v1/connections.py` | 8个API可用，Schema获取正确 |
+| Text-to-SQL服务 | `app/services/nl2sql.py`, `sql_executor.py` | SQL生成和执行正常 |
+| 评测系统 | `app/services/evaluator.py`, `tasks/eval_tasks.py` | EX计算准确，任务异步执行 |
+| LLM服务 | `app/services/llm.py` | 支持多提供商 |
+| API密钥管理 | `app/api/v1/api_keys.py` | 密钥增删查正常 |
+| 集成测试报告 | `docs/report/03-Phase3-Backend/` | Test Agent输出，所有测试通过 |
+
+---
+
+## 阶段检查清单
+
+### 功能检查
+- [x] 数据库连接CRUD功能完整
+- [x] Schema能正确获取
+- [x] SQL生成能调用LLM
+- [x] SQL执行有超时保护
+- [x] 评测任务能异步运行
+- [x] EX准确率计算正确
+- [x] 多数投票算法正确
+
+### 代码检查
+- [x] SQL有安全过滤
+- [x] 密码/API密钥加密
+- [x] 异步操作正确
+- [x] 有适当的错误处理
+
+### 测试检查（Test Agent负责）
+- [x] 单元测试覆盖核心逻辑
+- [x] 集成测试覆盖API
+- [x] 评测算法测试通过
+- [ ] 核心业务集成测试通过（Test Agent确认）
+- [ ] 测试报告已生成
+
+---
+
 ## 进入下一阶段条件
 
-1. ✅ 所有Task完成
-2. ✅ 数据库连接、SQL生成、评测功能可用
-3. ✅ 异步任务（BackgroundTasks）能正常工作
-4. ✅ 代码通过review
-5. ✅ 集成测试全部通过
-
-**状态**: 所有条件已满足，可以进入 Phase 4
+1. ✅ Task 3.1、3.2、3.3、3.4 全部完成
+2. ✅ Task 3.5 集成测试全部通过（Test Agent确认）
+3. ✅ 数据库连接、SQL生成、评测功能可用
+4. ✅ 异步任务（BackgroundTasks）能正常工作
+5. ✅ 代码通过review
 
 ---
 
