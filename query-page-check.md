@@ -1,0 +1,98 @@
+- generic [ref=e1]:
+  - generic [ref=e15]:
+    - complementary [ref=e16]:
+      - generic [ref=e18]: Text2SQL
+      - menubar [ref=e19]:
+        - menuitem "首页" [ref=e20] [cursor=pointer]:
+          - img [ref=e22]
+          - text: 首页
+        - menuitem "查询" [ref=e24] [cursor=pointer]:
+          - img [ref=e26]
+          - text: 查询
+        - menuitem "连接管理" [ref=e29] [cursor=pointer]:
+          - img [ref=e31]
+          - text: 连接管理
+        - menuitem "历史记录" [ref=e34] [cursor=pointer]:
+          - img [ref=e36]
+          - text: 历史记录
+        - menuitem "评测" [ref=e40] [cursor=pointer]:
+          - img [ref=e42]
+          - text: 评测
+        - menuitem "评测详情" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+          - text: 评测详情
+        - menuitem "设置" [ref=e48] [cursor=pointer]:
+          - img [ref=e50]
+          - text: 设置
+    - generic [ref=e52]:
+      - generic [ref=e53]:
+        - img [ref=e56] [cursor=pointer]
+        - button "admin" [ref=e60] [cursor=pointer]:
+          - text: admin
+          - img [ref=e62]
+      - main [ref=e64]:
+        - generic [ref=e66]:
+          - generic [ref=e68]:
+            - generic [ref=e70]:
+              - generic [ref=e71]: 数据库结构
+              - button [ref=e72] [cursor=pointer]:
+                - img [ref=e75]
+            - generic [ref=e77]:
+              - generic [ref=e80] [cursor=pointer]:
+                - generic:
+                  - combobox [ref=e82]
+                  - generic [ref=e83]: Test SQLite
+                - img [ref=e86]
+              - generic [ref=e89]:
+                - generic [ref=e90]:
+                  - generic [ref=e92]:
+                    - img [ref=e95]
+                    - textbox "搜索表或字段..." [ref=e97]
+                  - button [ref=e98] [cursor=pointer]:
+                    - img [ref=e101]
+                - tree [ref=e104]:
+                  - treeitem "test.db" [ref=e105]:
+                    - generic [ref=e106] [cursor=pointer]:
+                      - img [ref=e108]
+                      - generic [ref=e110]:
+                        - img [ref=e112]
+                        - generic [ref=e114]: test.db
+          - generic [ref=e116]:
+            - generic [ref=e118]:
+              - generic [ref=e119]: 自然语言查询
+              - button "清空" [ref=e120] [cursor=pointer]:
+                - generic [ref=e121]:
+                  - img [ref=e123]
+                  - text: 清空
+            - generic [ref=e126]:
+              - textbox "输入您的问题，例如：查询最近30天内销售额排名前10的商品" [active] [ref=e128]: 查询所有表的信息
+              - generic [ref=e129]:
+                - generic [ref=e130]: 示例：
+                - generic [ref=e132] [cursor=pointer]: 查询所有用户的信息
+                - generic [ref=e134] [cursor=pointer]: 统计每个部门的员工数量
+                - generic [ref=e136] [cursor=pointer]: 查询最近30天内注册的活跃用户
+                - generic [ref=e138] [cursor=pointer]: 找出销售额排名前10的商品
+              - generic [ref=e139]:
+                - button "生成 SQL" [ref=e140] [cursor=pointer]:
+                  - generic [ref=e141]:
+                    - img [ref=e143]
+                    - text: 生成 SQL
+                - button "一键运行" [ref=e145] [cursor=pointer]:
+                  - generic [ref=e146]:
+                    - img [ref=e148]
+                    - text: 一键运行
+          - generic [ref=e151]:
+            - generic [ref=e153]:
+              - generic [ref=e154]: 最近查询
+              - button "查看全部" [ref=e155] [cursor=pointer]:
+                - generic [ref=e156]:
+                  - text: 查看全部
+                  - img [ref=e158]
+            - generic [ref=e162]:
+              - img [ref=e164]
+              - paragraph [ref=e181]: 暂无查询记录
+  - generic [ref=e3]:
+    - generic "Toggle devtools panel" [ref=e4] [cursor=pointer]:
+      - img [ref=e5]
+    - generic "Toggle Component Inspector" [ref=e10] [cursor=pointer]:
+      - img [ref=e11]

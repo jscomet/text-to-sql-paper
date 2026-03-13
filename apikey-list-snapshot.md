@@ -1,0 +1,77 @@
+- generic [ref=e1]:
+  - generic [ref=e15]:
+    - complementary [ref=e16]:
+      - generic [ref=e18]: Text2SQL
+      - menubar [ref=e19]:
+        - menuitem "首页" [ref=e20] [cursor=pointer]:
+          - img [ref=e22]
+          - text: 首页
+        - menuitem "查询" [ref=e24] [cursor=pointer]:
+          - img [ref=e26]
+          - text: 查询
+        - menuitem "连接管理" [ref=e29] [cursor=pointer]:
+          - img [ref=e31]
+          - text: 连接管理
+        - menuitem "历史记录" [ref=e34] [cursor=pointer]:
+          - img [ref=e36]
+          - text: 历史记录
+        - menuitem "评测" [ref=e40] [cursor=pointer]:
+          - img [ref=e42]
+          - text: 评测
+        - menuitem "评测详情" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+          - text: 评测详情
+        - menuitem "设置" [ref=e48] [cursor=pointer]:
+          - img [ref=e50]
+          - text: 设置
+    - generic [ref=e52]:
+      - generic [ref=e53]:
+        - img [ref=e56] [cursor=pointer]
+        - button "admin" [ref=e60] [cursor=pointer]:
+          - text: admin
+          - img [ref=e62]
+      - main [ref=e64]:
+        - generic [ref=e65]:
+          - generic [ref=e66]:
+            - tablist [ref=e70]:
+              - tab "个人信息" [ref=e71]
+              - tab "修改密码" [ref=e72]
+              - tab "API Key" [selected] [ref=e73]
+              - tab "主题" [ref=e74]
+              - tab "关于" [ref=e75]
+            - generic [ref=e76]:
+              - text: "* * * * *"
+              - tabpanel "API Key" [ref=e95]:
+                - generic [ref=e96]:
+                  - button "添加 API Key" [active] [ref=e98] [cursor=pointer]:
+                    - generic [ref=e99]:
+                      - img [ref=e101]
+                      - text: 添加 API Key
+                  - generic [ref=e103]:
+                    - generic [ref=e104]:
+                      - table [ref=e106]:
+                        - rowgroup [ref=e114]:
+                          - row "提供商 格式类型 模型 默认 创建时间 操作" [ref=e115]:
+                            - columnheader "提供商" [ref=e116]:
+                              - generic [ref=e117]: 提供商
+                            - columnheader "格式类型" [ref=e118]:
+                              - generic [ref=e119]: 格式类型
+                            - columnheader "模型" [ref=e120]:
+                              - generic [ref=e121]: 模型
+                            - columnheader "默认" [ref=e122]:
+                              - generic [ref=e123]: 默认
+                            - columnheader "创建时间" [ref=e124]:
+                              - generic [ref=e125]: 创建时间
+                            - columnheader "操作" [ref=e126]:
+                              - generic [ref=e127]: 操作
+                      - generic [ref=e130]:
+                        - generic:
+                          - table:
+                            - rowgroup
+                    - img [ref=e202]
+          - text: "* * *"
+  - generic [ref=e3]:
+    - generic "Toggle devtools panel" [ref=e4] [cursor=pointer]:
+      - img [ref=e5]
+    - generic "Toggle Component Inspector" [ref=e10] [cursor=pointer]:
+      - img [ref=e11]
