@@ -20,8 +20,10 @@ try:
     from app.schemas.connection import ConnectionResponse
 
     # Create a pagination info
-    pagination = PaginationInfo(total=5, total_pages=1)
+    pagination = PaginationInfo(total=5, page=1, page_size=10, total_pages=1)
     assert pagination.total == 5
+    assert pagination.page == 1
+    assert pagination.page_size == 10
     assert pagination.total_pages == 1
     print(f"  PaginationInfo: {pagination.model_dump()}")
 
@@ -118,9 +120,13 @@ try:
 
     pagination = data["pagination"]
     assert "total" in pagination, "Missing 'total' in pagination"
+    assert "page" in pagination, "Missing 'page' in pagination"
+    assert "page_size" in pagination, "Missing 'page_size' in pagination"
     assert "total_pages" in pagination, "Missing 'total_pages' in pagination"
 
     assert pagination["total"] == 2, f"Expected total=2, got {pagination['total']}"
+    assert pagination["page"] == 1, f"Expected page=1, got {pagination['page']}"
+    assert pagination["page_size"] == 2, f"Expected page_size=2, got {pagination['page_size']}"
     assert pagination["total_pages"] == 1, f"Expected total_pages=1, got {pagination['total_pages']}"
     assert len(data["list"]) == 2, f"Expected 2 items, got {len(data['list'])}"
 
@@ -150,13 +156,15 @@ try:
     # This is what the new format looks like
     new_format = {
         "list": [{"id": 1, "name": "DB1"}, {"id": 2, "name": "DB2"}],
-        "pagination": {"total": 2, "total_pages": 1}
+        "pagination": {"total": 2, "page": 1, "page_size": 10, "total_pages": 1}
     }
 
     # Verify it has the expected structure
     assert isinstance(new_format["list"], list)
     assert isinstance(new_format["pagination"], dict)
     assert "total" in new_format["pagination"]
+    assert "page" in new_format["pagination"]
+    assert "page_size" in new_format["pagination"]
     assert "total_pages" in new_format["pagination"]
 
     print(f"  New format structure: {list(new_format.keys())}")
@@ -173,5 +181,5 @@ print("=" * 60)
 print("\nSummary:")
 print("  - PaginatedResponse schema is correct")
 print("  - API returns {list, pagination} format")
-print("  - Pagination contains {total, total_pages}")
+print("  - Pagination contains {total, page, page_size, total_pages}")
 print("  - Bug fix is verified and working")

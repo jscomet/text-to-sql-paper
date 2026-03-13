@@ -7,6 +7,8 @@ from pydantic import BaseModel
 class PaginationInfo(BaseModel):
     """Pagination information."""
     total: int
+    page: int
+    page_size: int
     total_pages: int
 
 

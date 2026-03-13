@@ -284,14 +284,17 @@ class ConnectionService:
                 password=password or "",
             )
 
-            engine = create_async_engine(
-                url,
-                pool_pre_ping=True,
-                pool_size=5,
-                max_overflow=10,
-                pool_recycle=3600,
-                echo=settings.is_development,
-            )
+            # SQLite doesn't support pool_size and max_overflow
+            engine_kwargs = {
+                "pool_pre_ping": True,
+                "echo": settings.is_development,
+            }
+            if connection.db_type != "sqlite":
+                engine_kwargs["pool_size"] = 5
+                engine_kwargs["max_overflow"] = 10
+                engine_kwargs["pool_recycle"] = 3600
+
+            engine = create_async_engine(url, **engine_kwargs)
 
             _connection_pool[connection.id] = engine
 

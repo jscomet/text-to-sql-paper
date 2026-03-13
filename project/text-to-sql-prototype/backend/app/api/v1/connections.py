@@ -50,6 +50,8 @@ async def list_connections(
         list=connection_list,
         pagination=PaginationInfo(
             total=total,
+            page=1,
+            page_size=total,
             total_pages=1,  # Currently no pagination, all results in one page
         ),
     )
