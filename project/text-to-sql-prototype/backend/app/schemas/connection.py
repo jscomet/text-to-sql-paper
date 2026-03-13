@@ -36,7 +36,7 @@ class ConnectionBase(BaseModel):
     db_type: str = Field(..., pattern="^(mysql|postgresql|sqlite)$")
     host: Optional[str] = Field(None, max_length=255)
     port: Optional[int] = None
-    database: Optional[str] = Field(None, max_length=100)
+    database: Optional[str] = Field(None, max_length=255)
     username: Optional[str] = Field(None, max_length=100)
 
     @field_validator('port')
@@ -73,7 +73,7 @@ class ConnectionUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     host: Optional[str] = Field(None, max_length=255)
     port: Optional[int] = None
-    database: Optional[str] = Field(None, max_length=100)
+    database: Optional[str] = Field(None, max_length=255)
     username: Optional[str] = Field(None, max_length=100)
     password: Optional[str] = Field(None, max_length=255)
 
@@ -119,7 +119,7 @@ class ConnectionTestRequest(BaseModel):
     db_type: str = Field(..., pattern="^(mysql|postgresql|sqlite)$")
     host: Optional[str] = Field(None, max_length=255)
     port: Optional[int] = None
-    database: Optional[str] = Field(None, max_length=100)
+    database: Optional[str] = Field(None, max_length=255)
     username: Optional[str] = Field(None, max_length=100)
     password: Optional[str] = Field(None, max_length=255)
 

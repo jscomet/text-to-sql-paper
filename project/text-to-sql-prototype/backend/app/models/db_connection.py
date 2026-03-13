@@ -26,7 +26,7 @@ class DBConnection(Base):
     db_type: Mapped[str] = mapped_column(String(20), nullable=False)
     host: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     port: Mapped[Optional[int]] = mapped_column(nullable=True)
-    database: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    database: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     username: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     password_encrypted: Mapped[Optional[str]] = mapped_column(nullable=True)
     schema_cache: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)

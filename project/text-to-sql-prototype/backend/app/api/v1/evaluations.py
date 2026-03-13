@@ -314,11 +314,18 @@ async def get_eval_results(
     result = await db.execute(count_query)
     total = result.scalar() or 0
 
+    # Calculate pagination info
+    page = skip // limit + 1 if limit > 0 else 1
+    total_pages = (total + limit - 1) // limit if limit > 0 else 1
+
     return EvalResultListResponse(
-        items=[EvalResultResponse.model_validate(r) for r in results],
-        total=total,
-        limit=limit,
-        offset=skip,
+        list=[EvalResultResponse.model_validate(r) for r in results],
+        pagination={
+            "total": total,
+            "page": page,
+            "page_size": limit,
+            "total_pages": total_pages,
+        },
     )
 
 
