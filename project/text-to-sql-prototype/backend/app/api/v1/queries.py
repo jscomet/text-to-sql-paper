@@ -146,11 +146,20 @@ async def generate_sql_endpoint(
 
         # Generate SQL
         dialect = get_sql_dialect(connection.db_type)
+
+        # 根据 provider 选择模型
+        if provider == "openai":
+            model = "gpt-3.5-turbo"
+        elif provider == "deepseek":
+            model = settings.deepseek_model
+        else:
+            model = "qwen3.5-plus"
+
         generated_sql = await generate_sql(
             question=request.question,
             schema_text=schema_text,
             provider=provider,
-            model_config={"model": "gpt-3.5-turbo"} if provider == "openai" else {"model": "qwen3.5-plus"},
+            model_config={"model": model},
             dialect=dialect,
             api_key=api_key,
         )
@@ -240,12 +249,25 @@ async def execute_sql_endpoint(
     execution_time_ms = (time.time() - start_time) * 1000
 
     if result["success"]:
+        # Convert object array rows to 2D array format for frontend
+        columns = result["columns"]
+        rows_2d = []
+        for row_obj in result["rows"]:
+            row_list = [row_obj.get(col) for col in columns]
+            rows_2d.append(row_list)
+
         return QueryExecuteResponse(
             success=True,
             query_id=0,  # No history record for direct execution
             sql=request.sql,
+            # Root-level fields for frontend
+            columns=columns,
+            rows=rows_2d,
+            row_count=result["row_count"],
+            execution_time=execution_time_ms,
+            # Legacy fields for backward compatibility
             result=QueryResultData(
-                columns=result["columns"],
+                columns=columns,
                 rows=result["rows"],
                 total_rows=result["row_count"],
                 truncated=result.get("truncated", False),
@@ -259,6 +281,7 @@ async def execute_sql_endpoint(
             query_id=0,
             sql=request.sql,
             error=result["error"],
+            execution_time=execution_time_ms,
             execution_time_ms=execution_time_ms,
         )
 
@@ -335,11 +358,20 @@ async def run_query_endpoint(
 
         # Generate SQL
         dialect = get_sql_dialect(connection.db_type)
+
+        # 根据 provider 选择模型
+        if provider == "openai":
+            model = "gpt-3.5-turbo"
+        elif provider == "deepseek":
+            model = settings.deepseek_model
+        else:
+            model = "qwen3.5-plus"
+
         generated_sql = await generate_sql(
             question=request.question,
             schema_text=schema_text,
             provider=provider,
-            model_config={"model": "gpt-3.5-turbo"} if provider == "openai" else {"model": "qwen3.5-plus"},
+            model_config={"model": model},
             dialect=dialect,
             api_key=api_key,
         )
@@ -366,14 +398,27 @@ async def run_query_endpoint(
                     execution_time_ms=execution_time_ms,
                 )
 
+                # Convert object array rows to 2D array format for frontend
+                columns = exec_result["columns"]
+                rows_2d = []
+                for row_obj in exec_result["rows"]:
+                    row_list = [row_obj.get(col) for col in columns]
+                    rows_2d.append(row_list)
+
                 return QueryRunResponse(
                     success=True,
                     query_id=query_record.id,
                     question=request.question,
                     generated_sql=generated_sql,
                     formatted_sql=formatted_sql,
+                    # Root-level fields for frontend compatibility
+                    columns=columns,
+                    rows=rows_2d,
+                    row_count=exec_result["row_count"],
+                    execution_time=execution_time_ms,
+                    # Legacy result field
                     result=QueryResultData(
-                        columns=exec_result["columns"],
+                        columns=columns,
                         rows=exec_result["rows"],
                         total_rows=exec_result["row_count"],
                         truncated=exec_result.get("truncated", False),
@@ -384,7 +429,6 @@ async def run_query_endpoint(
                     sql=generated_sql,
                     explanation="",
                     confidence=0.9,
-                    execution_time=execution_time_ms,
                 )
             else:
                 await history_service.update_query_result(

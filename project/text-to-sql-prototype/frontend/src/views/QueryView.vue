@@ -204,20 +204,33 @@ const handleExecuteSQL = async () => {
       sql: generatedSQL.value.trim(),
     })
 
-    // 转换行数据格式
-    const rows = response.rows.map((row: unknown[]) => {
+    // 适配后端响应格式：优先使用 result 字段，如果不存在则使用根级别字段
+    const resultData = response.result || response
+    const columns = resultData.columns || []
+    const rowsRaw = resultData.rows || []
+
+    // 转换行数据格式（支持二维数组或对象数组）
+    const rows = rowsRaw.map((row: unknown[] | Record<string, unknown>) => {
       const obj: Record<string, unknown> = {}
-      response.columns.forEach((col, index) => {
-        obj[col] = row[index]
-      })
+      if (Array.isArray(row)) {
+        // 二维数组格式
+        columns.forEach((col: string, index: number) => {
+          obj[col] = row[index]
+        })
+      } else {
+        // 对象数组格式
+        columns.forEach((col: string) => {
+          obj[col] = (row as Record<string, unknown>)[col]
+        })
+      }
       return obj
     })
 
     queryResult.value = {
-      columns: response.columns,
+      columns,
       rows,
-      rowCount: response.row_count,
-      executionTime: response.execution_time,
+      rowCount: resultData.total_rows || resultData.row_count || rows.length,
+      executionTime: response.execution_time_ms || response.execution_time || 0,
     }
 
     // 刷新历史记录
@@ -634,6 +647,60 @@ onMounted(() => {
                 <span>{{ generatedExplanation }}</span>
               </div>
             </div>
+
+            <!-- 查询结果头部（放在自然语言查询卡片内） -->
+            <div v-if="queryResult || executing || errorMessage" class="query-result-header">
+              <div class="result-status-bar">
+                <div class="result-status">
+                  <template v-if="executing">
+                    <el-icon class="is-loading"><Loading /></el-icon>
+                    <span>查询中...</span>
+                  </template>
+                  <template v-else-if="errorMessage">
+                    <el-icon color="var(--danger-color)"><CircleClose /></el-icon>
+                    <span class="error-text">查询失败</span>
+                  </template>
+                  <template v-else-if="queryResult?.rows?.length">
+                    <el-icon color="var(--success-color)"><CircleCheck /></el-icon>
+                    <span>查询成功</span>
+                    <el-tag size="small" type="info">{{ queryResult.rowCount }} 行</el-tag>
+                    <el-tag size="small" type="info">{{ queryResult.executionTime.toFixed(2) }}ms</el-tag>
+                  </template>
+                  <template v-else>
+                    <el-icon><InfoFilled /></el-icon>
+                    <span>暂无数据</span>
+                  </template>
+                </div>
+                <div v-if="queryResult?.rows?.length && !executing" class="result-export-actions">
+                  <el-button link size="small" @click="handleExport('csv')">
+                    <el-icon><Download /></el-icon>导出 CSV
+                  </el-button>
+                  <el-button link size="small" @click="handleExport('json')">
+                    <el-icon><Document /></el-icon>导出 JSON
+                  </el-button>
+                </div>
+              </div>
+
+              <!-- 执行的 SQL 预览 -->
+              <div v-if="generatedSQL && queryResult" class="executed-sql-preview">
+                <div class="sql-label">执行SQL:</div>
+                <pre class="sql-code">{{ generatedSQL }}</pre>
+              </div>
+
+              <!-- 错误提示 -->
+              <el-alert
+                v-if="errorMessage && !executing"
+                :title="errorMessage"
+                type="error"
+                :closable="false"
+                show-icon
+                class="query-error-alert"
+              >
+                <template #default>
+                  <el-button link type="primary" @click="handleExecuteSQL">重试</el-button>
+                </template>
+              </el-alert>
+            </div>
           </div>
         </el-card>
 
@@ -927,6 +994,65 @@ onMounted(() => {
               margin-top: 2px;
               color: var(--el-color-info);
             }
+          }
+        }
+
+        // 查询结果头部（放在自然语言查询卡片内）
+        .query-result-header {
+          margin-top: 16px;
+          padding-top: 16px;
+          border-top: 1px solid var(--el-border-color-light);
+
+          .result-status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+
+            .result-status {
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              font-size: 14px;
+
+              .error-text {
+                color: var(--el-color-danger);
+              }
+
+              .el-tag {
+                margin-left: 4px;
+              }
+            }
+
+            .result-export-actions {
+              display: flex;
+              gap: 8px;
+            }
+          }
+
+          .executed-sql-preview {
+            margin-bottom: 12px;
+
+            .sql-label {
+              font-size: 13px;
+              color: var(--el-text-color-secondary);
+              margin-bottom: 4px;
+            }
+
+            .sql-code {
+              margin: 0;
+              padding: 8px 12px;
+              background: var(--el-fill-color-light);
+              border-radius: 4px;
+              font-family: monospace;
+              font-size: 13px;
+              color: var(--el-text-color-primary);
+              overflow-x: auto;
+            }
+          }
+
+          .query-error-alert {
+            margin-top: 12px;
           }
         }
       }

@@ -340,6 +340,143 @@ class DashScopeClient(BaseLLMClient):
             raise
 
 
+class DeepSeekClient(BaseLLMClient):
+    """DeepSeek API client (OpenAI-compatible mode)."""
+
+    DEFAULT_BASE_URL = "https://api.deepseek.com"
+    DEFAULT_MODEL = "deepseek-chat"
+
+    def __init__(
+        self,
+        api_key: str,
+        base_url: Optional[str] = None,
+        default_model: str = DEFAULT_MODEL,
+    ):
+        """Initialize the DeepSeek client.
+
+        Args:
+            api_key: The DeepSeek API key.
+            base_url: Optional custom base URL.
+            default_model: Default model to use.
+        """
+        super().__init__(api_key, base_url or self.DEFAULT_BASE_URL)
+        self.default_model = default_model
+
+        # DeepSeek uses OpenAI-compatible API
+        self.client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=self.base_url,
+        )
+
+    @retry(
+        retry=retry_if_exception_type((
+            httpx.ConnectError,
+            httpx.TimeoutException,
+            httpx.HTTPStatusError,
+        )),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        reraise=True,
+    )
+    async def generate(
+        self,
+        prompt: str,
+        model_config: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Generate text using DeepSeek API.
+
+        Args:
+            prompt: The input prompt.
+            model_config: Optional configuration including:
+                - model: Model name (default: deepseek-chat)
+                - temperature: Sampling temperature (default: 0.7)
+                - max_tokens: Maximum tokens (default: 2000)
+                - top_p: Nucleus sampling parameter
+
+        Returns:
+            The generated text response.
+
+        Raises:
+            Exception: If the API call fails after retries.
+        """
+        config = model_config or {}
+        model = config.get("model", self.default_model)
+        temperature = config.get("temperature", 0.7)
+        max_tokens = config.get("max_tokens", 2000)
+
+        try:
+            logger.debug(f"Calling DeepSeek API with model: {model}")
+
+            messages = [{"role": "user", "content": prompt}]
+
+            response = await self.client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                top_p=config.get("top_p"),
+            )
+
+            result = response.choices[0].message.content
+            logger.debug(f"DeepSeek API response received")
+            return result
+
+        except Exception as e:
+            logger.error(f"DeepSeek API error: {str(e)}")
+            raise
+
+    @retry(
+        retry=retry_if_exception_type((
+            httpx.ConnectError,
+            httpx.TimeoutException,
+            httpx.HTTPStatusError,
+        )),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        reraise=True,
+    )
+    async def generate_stream(
+        self,
+        prompt: str,
+        model_config: Optional[Dict[str, Any]] = None,
+    ) -> AsyncGenerator[str, None]:
+        """Generate text using DeepSeek API with streaming.
+
+        Args:
+            prompt: The input prompt.
+            model_config: Optional model configuration.
+
+        Yields:
+            Chunks of generated text.
+        """
+        config = model_config or {}
+        model = config.get("model", self.default_model)
+        temperature = config.get("temperature", 0.7)
+        max_tokens = config.get("max_tokens", 2000)
+
+        try:
+            logger.debug(f"Calling DeepSeek API with streaming, model: {model}")
+
+            messages = [{"role": "user", "content": prompt}]
+
+            stream = await self.client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                top_p=config.get("top_p"),
+                stream=True,
+            )
+
+            async for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+
+        except Exception as e:
+            logger.error(f"DeepSeek API streaming error: {str(e)}")
+            raise
+
+
 def get_llm_client(
     provider: str,
     api_key: Optional[str] = None,
@@ -349,7 +486,7 @@ def get_llm_client(
     """Factory function to get the appropriate LLM client.
 
     Args:
-        provider: The LLM provider ('openai' or 'dashscope').
+        provider: The LLM provider ('openai', 'dashscope', or 'deepseek').
         api_key: Optional API key. If not provided, uses settings.
         base_url: Optional base URL override.
         model: Optional default model override.
@@ -380,6 +517,16 @@ def get_llm_client(
             api_key=key,
             base_url=base_url or settings.dashscope_base_url,
             default_model=model or settings.dashscope_model,
+        )
+
+    elif provider == "deepseek":
+        key = api_key or settings.deepseek_api_key
+        if not key:
+            raise ValueError("DeepSeek API key not provided")
+        return DeepSeekClient(
+            api_key=key,
+            base_url=base_url or settings.deepseek_base_url,
+            default_model=model or settings.deepseek_model,
         )
 
     else:

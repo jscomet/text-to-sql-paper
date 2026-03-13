@@ -30,13 +30,20 @@ request.interceptors.request.use(
 // 响应拦截器
 request.interceptors.response.use(
   (response) => {
-    // 后端返回格式: { code, message, data }
-    // 如果响应中有 data 字段且包含 code，说明是标准API响应格式
-    const responseData = response.data as { code?: number; data?: unknown; message?: string } | undefined
+    // 后端返回格式可能是: { code, message, data } 或直接返回数据
+    const responseData = response.data as { code?: number; data?: unknown; message?: string; success?: boolean } | undefined
+
+    // 如果响应中有 code 字段且等于 200，返回 data 字段
     if (responseData?.code === 200) {
       return responseData.data
     }
-    // 否则直接返回原始响应数据
+
+    // 如果响应中有 success 字段（后端直接返回的 Pydantic 模型），直接返回整个响应
+    if (typeof responseData?.success === 'boolean') {
+      return response.data
+    }
+
+    // 其他情况直接返回原始响应数据
     return response.data
   },
   (error: AxiosError) => {

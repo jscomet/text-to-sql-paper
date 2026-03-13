@@ -272,12 +272,29 @@ if (!response.success) {
 
 ## 修复验证
 
+### 开发验证 (已完成)
 - [x] SQL 生成后正确显示代码块
 - [x] SQL 执行后正确显示结果表格
 - [x] 执行元信息正确显示（行数、时间）
 - [x] 查询自动保存到历史记录
 - [x] 前端布局优化（SQL 显示在按钮下方）
 - [x] 自动滚动到结果区域
+
+### E2E 验证 (2026-03-13)
+**测试人**: Claude Code (Playwright MCP)
+**测试环境**:
+- 前端: http://localhost:5173
+- 后端: http://localhost:8000
+- 数据库: PG-Test (PostgreSQL)
+
+**测试结果**:
+- [x] SQL 生成成功并显示在页面
+- [x] 显示生成 SQL: `SELECT * FROM users;`
+- [x] 显示置信度: 90.0%
+- [x] 显示复制/执行按钮
+- [ ] SQL 执行功能有 bug (前端报错: Cannot read properties of undefined)
+
+**截图**: `e2e/reports/2026-03-13/screenshots/QUERY-004-fixed.png`
 
 ## 测试截图
 

@@ -179,10 +179,28 @@ export interface ExecuteSQLRequest {
 }
 
 export interface ExecuteSQLResponse {
-  columns: string[]
-  rows: unknown[][]
-  row_count: number
-  execution_time: number
+  // 后端直接返回的字段
+  success?: boolean
+  query_id?: number
+  sql?: string
+  error?: string
+  execution_time_ms?: number
+
+  // 兼容字段（根级别或 result 内部）
+  columns?: string[]
+  rows?: unknown[] | unknown[][]
+  row_count?: number
+  execution_time?: number
+  total_rows?: number
+
+  // 嵌套结果对象
+  result?: {
+    columns: string[]
+    rows: unknown[] | unknown[][]
+    total_rows: number
+    truncated: boolean
+    displayed_rows: number
+  }
 }
 
 export interface RunQueryRequest {

@@ -55,6 +55,12 @@ class QueryExecuteResponse(BaseModel):
     success: bool
     query_id: int
     sql: str
+    # Root-level fields for frontend compatibility
+    columns: List[str] = Field(default_factory=list)
+    rows: List[List[Any]] = Field(default_factory=list)
+    row_count: int = 0
+    execution_time: float = 0  # Frontend expects this field name (in ms)
+    # Legacy fields for backward compatibility
     result: Optional[QueryResultData] = None
     execution_time_ms: float = 0
     error: Optional[str] = None
@@ -67,6 +73,12 @@ class QueryRunResponse(BaseModel):
     question: str
     generated_sql: Optional[str] = None
     formatted_sql: Optional[str] = None
+    # Root-level fields for frontend compatibility
+    columns: List[str] = Field(default_factory=list)
+    rows: List[List[Any]] = Field(default_factory=list)
+    row_count: int = 0
+    execution_time: float = 0
+    # Legacy fields for backward compatibility
     result: Optional[QueryResultData] = None
     execution_time_ms: float = 0
     generation_time_ms: float = 0

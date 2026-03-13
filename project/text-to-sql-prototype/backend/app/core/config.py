@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     dashscope_model: str = "qwen3.5-plus"
     dashscope_base_url: str = "https://coding.dashscope.aliyuncs.com/v1"
 
+    # LLM APIs - DeepSeek
+    deepseek_api_key: Optional[str] = None
+    deepseek_model: str = "deepseek-chat"
+    deepseek_base_url: str = "https://api.deepseek.com"
+
     # API Key Encryption
     api_key_encryption_key: str = "your-encryption-key-change-in-production"
 
