@@ -120,7 +120,7 @@ class EvalTaskResponse(BaseModel):
     name: str
     dataset_type: str
     dataset_path: Optional[str]
-    model_settings: Dict[str, Any] = Field(alias="model_config")
+    model_settings: Optional[Dict[str, Any]] = Field(default=None, alias="model_config")
     eval_mode: str
     status: str
     progress_percent: int
@@ -172,7 +172,7 @@ class EvalTaskWithChildrenResponse(BaseModel):
     task_type: str
     dataset_type: str
     dataset_path: Optional[str]
-    model_settings: Dict[str, Any] = Field(alias="model_config")
+    model_settings: Optional[Dict[str, Any]] = Field(default=None, alias="model_config")
     eval_mode: str
     status: str
     progress_percent: int
