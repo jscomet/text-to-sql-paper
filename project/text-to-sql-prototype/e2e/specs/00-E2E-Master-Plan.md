@@ -192,13 +192,26 @@ P2 (一般): 8 用例 (7%)
 
 ### 5.1 测试账号
 
+### 5.2 ICED 数据集导入测试
+
+| 用例 ID | 用例名称 | 优先级 | 测试类型 | 测试规范 |
+|---------|----------|--------|----------|----------|
+| TC-ICED-001 | BIRD 数据库连接列表验证 | P0 | UI 验证 | [10-ICED-Dataset-Import-Test-Spec.md](10-ICED-Dataset-Import-Test-Spec.md) |
+| TC-ICED-002 | BIRD 数据库 Schema 验证 | P1 | 功能测试 | [10-ICED-Dataset-Import-Test-Spec.md](10-ICED-Dataset-Import-Test-Spec.md) |
+| TC-ICED-003 | BIRD 评测任务列表验证 | P0 | UI 验证 | [10-ICED-Dataset-Import-Test-Spec.md](10-ICED-Dataset-Import-Test-Spec.md) |
+| TC-ICED-004 | 评测任务详情查看 | P1 | 功能测试 | [10-ICED-Dataset-Import-Test-Spec.md](10-ICED-Dataset-Import-Test-Spec.md) |
+| TC-ICED-005 | 评测任务启动执行 | P0 | 功能测试 | [10-ICED-Dataset-Import-Test-Spec.md](10-ICED-Dataset-Import-Test-Spec.md) |
+| TC-ICED-006 | 数据集数据量验证 | P1 | API 验证 | [10-ICED-Dataset-Import-Test-Spec.md](10-ICED-Dataset-Import-Test-Spec.md) |
+
+### 5.3 测试账号
+
 | 账号类型 | 用户名 | 密码 | 用途 |
 |----------|--------|------|------|
 | 标准用户 | testuser | Test@123 | 常规测试 |
 | 长用户名 | verylongusername123456 | Test@123 | 边界测试 |
 | 特殊字符 | user@example.com | Test@123 | 邮箱格式 |
 
-### 5.2 测试数据库连接
+### 5.4 测试数据库连接
 
 | 连接名 | 类型 | 主机 | 数据库 | 状态 |
 |--------|------|------|--------|------|
@@ -372,6 +385,7 @@ TC-{模块}-{序号}
 - HIST: 历史记录
 - EVAL: 评测功能
 - SET: 个人设置
+- ICED: ICED 数据集导入
 
 示例: TC-AUTH-001 (用户认证模块第1个用例)
 ```
