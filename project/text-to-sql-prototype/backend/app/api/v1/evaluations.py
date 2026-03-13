@@ -622,7 +622,7 @@ async def retry_failed_child_tasks(
 @router.get("/tasks/{parent_id}/children", response_model=dict)
 async def list_child_tasks(
     parent_id: int,
-    status: Optional[str] = Query(None, description="Filter by status"),
+    task_status: Optional[str] = Query(None, description="Filter by status"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(10, ge=1, le=100, description="Page size"),
     db: AsyncSession = Depends(get_db),
@@ -632,7 +632,7 @@ async def list_child_tasks(
 
     Args:
         parent_id: Parent task ID.
-        status: Optional status filter.
+        task_status: Optional status filter.
         page: Page number (1-indexed).
         page_size: Number of items per page.
         db: Database session.
@@ -654,8 +654,8 @@ async def list_child_tasks(
     child_tasks = await EvalTaskService.get_child_tasks(db, parent_id, current_user.id)
 
     # Filter by status if provided
-    if status:
-        child_tasks = [t for t in child_tasks if t.status == status]
+    if task_status:
+        child_tasks = [t for t in child_tasks if t.status == task_status]
 
     # Pagination
     total = len(child_tasks)
