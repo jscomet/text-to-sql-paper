@@ -128,7 +128,19 @@ const refreshAll = async () => {
 
 // 处理返回
 const handleBack = () => {
-  router.push('/evaluations')
+  // 如果是子任务，返回到父任务详情页
+  if (taskDetail.value?.parent_id) {
+    router.push(`/evaluations/parent/${taskDetail.value.parent_id}`)
+  } else {
+    router.push('/evaluations')
+  }
+}
+
+// 处理查看父任务
+const handleViewParent = () => {
+  if (taskDetail.value?.parent_id) {
+    router.push(`/evaluations/parent/${taskDetail.value.parent_id}`)
+  }
 }
 
 // 处理取消任务
@@ -278,11 +290,17 @@ onUnmounted(() => {
       <div class="header-left">
         <el-button link @click="handleBack">
           <el-icon><ArrowLeft /></el-icon>
-          返回列表
+          {{ taskDetail?.parent_id ? '返回父任务' : '返回列表' }}
         </el-button>
         <h2 class="page-title">{{ taskDetail?.name || '评测详情' }}</h2>
         <el-tag v-if="taskDetail" :type="getStatusType(taskDetail.status)" size="small">
           {{ getStatusText(taskDetail.status) }}
+        </el-tag>
+        <el-tag v-if="taskDetail?.task_type === 'child'" type="warning" size="small" effect="plain">
+          子任务
+        </el-tag>
+        <el-tag v-else-if="taskDetail?.task_type === 'parent'" type="success" size="small" effect="plain">
+          父任务
         </el-tag>
       </div>
       <div class="header-actions">
@@ -329,6 +347,15 @@ onUnmounted(() => {
         </el-descriptions-item>
         <el-descriptions-item label="运行时长">
           {{ getDuration() }}
+        </el-descriptions-item>
+        <!-- 子任务特有信息 -->
+        <el-descriptions-item v-if="taskDetail?.db_id" label="数据库ID">
+          <el-tag size="small" type="primary" effect="plain">{{ taskDetail.db_id }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item v-if="taskDetail?.parent" label="父任务">
+          <el-button type="primary" link size="small" @click="handleViewParent">
+            {{ taskDetail.parent.name }} (#{{ taskDetail.parent.id }})
+          </el-button>
         </el-descriptions-item>
       </el-descriptions>
     </el-card>

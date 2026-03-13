@@ -11,10 +11,13 @@ import {
   type EvalTaskParams,
   type TaskStatus,
 } from '@/api/evaluations'
-import type { EvalTask, CreateEvalTaskRequest } from '@/types'
+import { importDatasetZip, importDatasetLocal } from '@/api/dataset'
+import type { EvalTask, CreateEvalTaskRequest, ImportConfig } from '@/types'
 import { getConnections } from '@/api/connections'
 import type { Connection } from '@/types'
 import EvalTaskFormDialog from '@/components/EvalTaskFormDialog.vue'
+import ImportDialog from '@/components/dataset/ImportDialog.vue'
+import ProgressDialog from '@/components/dataset/ProgressDialog.vue'
 
 const router = useRouter()
 
@@ -32,6 +35,12 @@ const statusFilter = ref<TaskStatus | ''>('')
 
 // 对话框显示状态
 const dialogVisible = ref(false)
+const importDialogVisible = ref(false)
+const progressDialogVisible = ref(false)
+
+// 导入状态
+const currentImportId = ref<string | null>(null)
+const importCompleted = ref(false)
 
 // 连接列表（用于表单）
 const connections = ref<Connection[]>([])
@@ -100,6 +109,72 @@ const refreshTaskProgress = async () => {
 // 处理新建评测
 const handleCreate = () => {
   dialogVisible.value = true
+}
+
+// 处理导入数据集
+const handleImportDataset = () => {
+  importDialogVisible.value = true
+}
+
+// 处理导入提交
+const handleImportSubmit = async (data: {
+  type: 'zip' | 'local'
+  file?: File
+  path?: string
+  config: ImportConfig
+}) => {
+  try {
+    let response
+    if (data.type === 'zip' && data.file) {
+      response = await importDatasetZip(data.file, data.config)
+    } else if (data.type === 'local' && data.path) {
+      response = await importDatasetLocal(data.path, data.config)
+    } else {
+      ElMessage.error('无效的导入参数')
+      return
+    }
+
+    // 关闭导入对话框，显示进度对话框
+    importDialogVisible.value = false
+    currentImportId.value = response.import_id
+    importCompleted.value = false
+    progressDialogVisible.value = true
+
+    ElMessage.success('导入任务已启动')
+  } catch (error) {
+    console.error('启动导入失败:', error)
+    ElMessage.error('启动导入失败')
+  }
+}
+
+// 处理导入完成
+const handleImportCompleted = (result: { parent_task_id: number; connection_count: number; task_count: number }) => {
+  importCompleted.value = true
+  ElMessage.success(`导入完成！创建了 ${result.connection_count} 个连接和 ${result.task_count} 个子任务`)
+  progressDialogVisible.value = false
+
+  // 跳转到父任务详情页
+  if (result.parent_task_id) {
+    router.push(`/evaluations/parent/${result.parent_task_id}`)
+  }
+
+  // 刷新任务列表
+  loadTasks()
+}
+
+// 处理导入失败
+const handleImportFailed = (error: string) => {
+  importCompleted.value = true
+  ElMessage.error(`导入失败: ${error}`)
+  progressDialogVisible.value = false
+}
+
+// 处理导入取消
+const handleImportCancelled = () => {
+  importCompleted.value = true
+  ElMessage.info('导入已取消')
+  progressDialogVisible.value = false
+  loadTasks()
 }
 
 // 处理提交表单
@@ -297,6 +372,10 @@ onUnmounted(() => {
               <el-option label="失败" value="failed" />
               <el-option label="已取消" value="cancelled" />
             </el-select>
+            <el-button type="success" @click="handleImportDataset">
+              <el-icon class="el-icon--left"><Upload /></el-icon>
+              导入数据集
+            </el-button>
             <el-button type="primary" @click="handleCreate">
               <el-icon class="el-icon--left"><Plus /></el-icon>
               新建评测
@@ -422,6 +501,21 @@ onUnmounted(() => {
       v-model:visible="dialogVisible"
       :connections="connections"
       @submit="handleSubmit"
+    />
+
+    <!-- 导入数据集对话框 -->
+    <ImportDialog
+      v-model:visible="importDialogVisible"
+      @submit="handleImportSubmit"
+    />
+
+    <!-- 导入进度对话框 -->
+    <ProgressDialog
+      v-model:visible="progressDialogVisible"
+      :import-id="currentImportId"
+      @completed="handleImportCompleted"
+      @failed="handleImportFailed"
+      @cancelled="handleImportCancelled"
     />
   </div>
 </template>

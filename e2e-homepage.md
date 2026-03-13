@@ -1,0 +1,31 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e16]:
+    - generic [ref=e18]:
+      - heading "Text2SQL" [level=2] [ref=e19]
+      - paragraph [ref=e20]: 智能文本转SQL查询系统
+    - generic [ref=e22]:
+      - generic [ref=e26]:
+        - img [ref=e29]
+        - textbox "用户名" [ref=e31]
+      - generic [ref=e35]:
+        - img [ref=e38]
+        - textbox "密码" [ref=e41]
+      - button "登录" [ref=e44] [cursor=pointer]:
+        - generic [ref=e45]: 登录
+      - generic [ref=e46]:
+        - generic [ref=e47] [cursor=pointer]:
+          - generic [ref=e48]:
+            - checkbox "记住我"
+          - generic [ref=e50]: 记住我
+        - generic [ref=e52] [cursor=pointer]: 忘记密码?
+      - generic [ref=e53]:
+        - text: 还没有账号?
+        - generic [ref=e55] [cursor=pointer]: 立即注册
+  - generic [ref=e3]:
+    - generic "Toggle devtools panel" [ref=e4] [cursor=pointer]:
+      - img [ref=e5]
+    - generic "Toggle Component Inspector" [ref=e10] [cursor=pointer]:
+      - img [ref=e11]
+  - alert [ref=e56]:
+    - img [ref=e58]
+    - paragraph [ref=e60]: 登录已过期，请重新登录

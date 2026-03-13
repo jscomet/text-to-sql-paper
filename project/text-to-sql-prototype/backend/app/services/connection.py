@@ -1,10 +1,12 @@
 """Database connection service for managing database connections."""
+import os
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -385,3 +387,121 @@ class ConnectionService:
         """
         tables = ConnectionService.parse_cached_schema(connection)
         return SchemaService.build_schema_text(tables)
+
+    @staticmethod
+    async def batch_create_connections(
+        db: Any,
+        db_ids: List[str],
+        base_path: str,
+        user_id: int,
+        prefix: str = "bird"
+    ) -> Dict[str, int]:
+        """Batch create database connections for multiple databases.
+
+        This method creates connection configurations for multiple SQLite databases
+        typically used in BIRD dataset import scenarios.
+
+        Args:
+            db: Database session.
+            db_ids: List of database identifiers (e.g., ["california_schools", "financial"]).
+            base_path: Base directory path containing the SQLite database files.
+            user_id: User ID who owns the connections.
+            prefix: Prefix for connection names (default: "bird").
+
+        Returns:
+            Dictionary mapping db_id to connection_id.
+
+        Example:
+            >>> db_ids = ["california_schools", "financial"]
+            >>> base_path = "/data/bird/databases"
+            >>> mapping = await ConnectionService.batch_create_connections(
+            ...     db, db_ids, base_path, user_id=1
+            ... )
+            >>> print(mapping)
+            {"california_schools": 1, "financial": 2}
+        """
+        mapping: Dict[str, int] = {}
+
+        for db_id in db_ids:
+            # Generate connection name
+            connection_name = f"{prefix}_{db_id}"
+
+            # Build database file path
+            # BIRD dataset structure: base_path/db_id/db_id.sqlite
+            db_file_path = os.path.join(base_path, db_id, f"{db_id}.sqlite")
+
+            # Alternative: try .db extension if .sqlite doesn't exist
+            if not os.path.exists(db_file_path):
+                db_file_path = os.path.join(base_path, db_id, f"{db_id}.db")
+
+            # Check if connection already exists for this user and name
+            result = await db.execute(
+                select(DBConnection).where(
+                    DBConnection.user_id == user_id,
+                    DBConnection.name == connection_name
+                )
+            )
+            existing = result.scalar_one_or_none()
+
+            if existing:
+                # Reuse existing connection
+                mapping[db_id] = existing.id
+                logger.info(f"Reusing existing connection {existing.id} for {db_id}")
+                continue
+
+            # Create new connection
+            connection_data = ConnectionCreate(
+                name=connection_name,
+                db_type="sqlite",
+                host=None,
+                port=None,
+                database=db_file_path,
+                username=None,
+                password=None
+            )
+
+            try:
+                connection = await ConnectionService.create_connection(
+                    db=db,
+                    user_id=user_id,
+                    connection_data=connection_data
+                )
+                mapping[db_id] = connection.id
+                logger.info(f"Created connection {connection.id} for {db_id}")
+            except Exception as e:
+                logger.error(f"Failed to create connection for {db_id}: {e}")
+                # Continue with other databases even if one fails
+                continue
+
+        return mapping
+
+    @staticmethod
+    async def batch_test_connections(
+        db: Any,
+        connection_ids: List[int]
+    ) -> Dict[int, Tuple[bool, Optional[str]]]:
+        """Test multiple database connections.
+
+        Args:
+            db: Database session.
+            connection_ids: List of connection IDs to test.
+
+        Returns:
+            Dictionary mapping connection_id to (success, error_message) tuple.
+        """
+        results: Dict[int, Tuple[bool, Optional[str]]] = {}
+
+        for conn_id in connection_ids:
+            result = await db.execute(
+                select(DBConnection).where(DBConnection.id == conn_id)
+            )
+            connection = result.scalar_one_or_none()
+
+            if not connection:
+                results[conn_id] = (False, "Connection not found")
+                continue
+
+            success, error = await ConnectionService.test_connection_model(connection)
+            results[conn_id] = (success, error)
+
+        return results

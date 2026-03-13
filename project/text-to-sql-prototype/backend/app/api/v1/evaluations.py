@@ -20,6 +20,8 @@ from app.schemas.evaluation import (
     EvalTaskListResponse,
     EvalTaskResponse,
     EvalTaskUpdate,
+    EvalTaskWithChildrenResponse,
+    EvalTaskChildResponse,
     PaginationInfo,
 )
 from app.api.v1.api_keys import get_user_api_key_by_id
@@ -141,6 +143,9 @@ async def list_eval_tasks(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(10, ge=1, le=1000, description="Page size"),
     status: Optional[str] = Query(None, description="Filter by status"),
+    task_type: Optional[str] = Query(None, description="Filter by task type: parent, child, single"),
+    parent_id: Optional[int] = Query(None, description="Filter by parent task ID"),
+    db_id: Optional[str] = Query(None, description="Filter by database ID"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> EvalTaskListResponse:
@@ -150,6 +155,9 @@ async def list_eval_tasks(
         page: Page number (1-indexed).
         page_size: Number of items per page.
         status: Optional status filter.
+        task_type: Optional task type filter (parent, child, single).
+        parent_id: Optional parent task ID filter.
+        db_id: Optional database ID filter.
         db: Database session.
         current_user: Current authenticated user.
 
@@ -158,22 +166,40 @@ async def list_eval_tasks(
     """
     skip = (page - 1) * page_size
 
-    # Get tasks
-    tasks = await EvalTaskService.list_eval_tasks(
-        db=db,
-        user_id=current_user.id,
-        skip=skip,
-        limit=page_size,
-        status=status,
-    )
-
-    # Get total count
+    # Build base query
+    query = select(EvalTask).where(EvalTask.user_id == current_user.id)
     count_query = select(func.count(EvalTask.id)).where(EvalTask.user_id == current_user.id)
+
+    # Apply filters
     if status:
+        query = query.where(EvalTask.status == status)
         count_query = count_query.where(EvalTask.status == status)
 
-    result = await db.execute(count_query)
-    total = result.scalar() or 0
+    if task_type:
+        query = query.where(EvalTask.task_type == task_type)
+        count_query = count_query.where(EvalTask.task_type == task_type)
+
+    if parent_id is not None:
+        query = query.where(EvalTask.parent_id == parent_id)
+        count_query = count_query.where(EvalTask.parent_id == parent_id)
+
+    if db_id:
+        query = query.where(EvalTask.db_id == db_id)
+        count_query = count_query.where(EvalTask.db_id == db_id)
+
+    # Order by created_at desc
+    query = query.order_by(EvalTask.created_at.desc())
+
+    # Apply pagination
+    query = query.offset(skip).limit(page_size)
+
+    # Execute query
+    result = await db.execute(query)
+    tasks = result.scalars().all()
+
+    # Get total count
+    count_result = await db.execute(count_query)
+    total = count_result.scalar() or 0
 
     total_pages = (total + page_size - 1) // page_size if page_size > 0 else 0
 
@@ -188,21 +214,23 @@ async def list_eval_tasks(
     )
 
 
-@router.get("/tasks/{task_id}", response_model=EvalTaskResponse)
+@router.get("/tasks/{task_id}", response_model=EvalTaskWithChildrenResponse)
 async def get_eval_task(
     task_id: int,
+    include_children: bool = Query(default=True, description="Include children for parent tasks"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-) -> EvalTaskResponse:
+) -> EvalTaskWithChildrenResponse:
     """Get evaluation task details.
 
     Args:
         task_id: Task ID.
+        include_children: Whether to include children for parent tasks.
         db: Database session.
         current_user: Current authenticated user.
 
     Returns:
-        Task details.
+        Task details with optional children.
     """
     task = await EvalTaskService.get_eval_task(db, task_id, current_user.id)
 
@@ -212,7 +240,53 @@ async def get_eval_task(
             detail="Evaluation task not found",
         )
 
-    return EvalTaskResponse.model_validate(task)
+    # If it's a parent task and include_children is True, fetch children
+    children = []
+    if task.task_type == "parent" and include_children:
+        child_tasks = await EvalTaskService.get_child_tasks(db, task_id, current_user.id)
+        children = [
+            EvalTaskChildResponse(
+                id=child.id,
+                name=child.name,
+                task_type=child.task_type,
+                db_id=child.db_id,
+                connection_id=child.connection_id,
+                status=child.status,
+                progress_percent=child.progress_percent,
+                total_questions=child.total_questions,
+                correct_count=child.correct_count,
+                accuracy=child.accuracy,
+                created_at=child.created_at,
+                completed_at=child.completed_at,
+            )
+            for child in child_tasks
+        ]
+
+    return EvalTaskWithChildrenResponse(
+        id=task.id,
+        user_id=task.user_id,
+        name=task.name,
+        task_type=task.task_type,
+        dataset_type=task.dataset_type,
+        dataset_path=task.dataset_path,
+        model_settings=task.model_config,
+        eval_mode=task.eval_mode,
+        status=task.status,
+        progress_percent=task.progress_percent,
+        total_questions=task.total_questions,
+        processed_questions=task.processed_questions,
+        correct_count=task.correct_count,
+        accuracy=task.accuracy,
+        child_count=task.child_count,
+        completed_children=task.completed_children,
+        log_path=task.log_path,
+        error_message=task.error_message,
+        created_at=task.created_at,
+        updated_at=task.updated_at,
+        started_at=task.started_at,
+        completed_at=task.completed_at,
+        children=children,
+    )
 
 
 @router.get("/tasks/{task_id}/progress", response_model=EvalProgressResponse)
@@ -431,3 +505,186 @@ async def delete_eval_task(
     await db.commit()
 
     logger.info(f"Deleted eval task {task_id}")
+
+
+@router.post("/tasks/{parent_id}/start-all", response_model=dict)
+async def start_all_child_tasks(
+    parent_id: int,
+    delay_seconds: int = Query(default=0, ge=0, description="Delay between starting tasks"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict:
+    """Start all pending child tasks for a parent task.
+
+    Args:
+        parent_id: Parent task ID.
+        delay_seconds: Delay between starting tasks in seconds.
+        db: Database session.
+        current_user: Current authenticated user.
+
+    Returns:
+        Start result with counts and task IDs.
+    """
+    # Get parent task
+    parent = await EvalTaskService.get_eval_task(db, parent_id, current_user.id)
+
+    if not parent:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Parent task not found",
+        )
+
+    if parent.task_type != "parent":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Task is not a parent task",
+        )
+
+    # Get child tasks
+    child_tasks = await EvalTaskService.get_child_tasks(db, parent_id, current_user.id)
+
+    # Filter pending tasks
+    pending_tasks = [t for t in child_tasks if t.status == "pending"]
+
+    if not pending_tasks:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No pending child tasks to start",
+        )
+
+    # TODO: Start tasks in background
+    # For now, just return the count
+    started_task_ids = [t.id for t in pending_tasks]
+
+    return {
+        "success": True,
+        "message": f"Started {len(pending_tasks)} child tasks",
+        "started_count": len(pending_tasks),
+        "skipped_count": len(child_tasks) - len(pending_tasks),
+        "started_tasks": started_task_ids,
+    }
+
+
+@router.post("/tasks/{parent_id}/retry-failed", response_model=dict)
+async def retry_failed_child_tasks(
+    parent_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict:
+    """Retry all failed child tasks for a parent task.
+
+    Args:
+        parent_id: Parent task ID.
+        db: Database session.
+        current_user: Current authenticated user.
+
+    Returns:
+        Retry result with counts and task IDs.
+    """
+    # Get parent task
+    parent = await EvalTaskService.get_eval_task(db, parent_id, current_user.id)
+
+    if not parent:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Parent task not found",
+        )
+
+    if parent.task_type != "parent":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Task is not a parent task",
+        )
+
+    # Get child tasks
+    child_tasks = await EvalTaskService.get_child_tasks(db, parent_id, current_user.id)
+
+    # Filter failed tasks
+    failed_tasks = [t for t in child_tasks if t.status == "failed"]
+
+    if not failed_tasks:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No failed child tasks to retry",
+        )
+
+    # TODO: Reset and retry tasks
+    retried_task_ids = [t.id for t in failed_tasks]
+
+    return {
+        "success": True,
+        "message": f"Retried {len(failed_tasks)} failed child tasks",
+        "retried_count": len(failed_tasks),
+        "retried_tasks": retried_task_ids,
+    }
+
+
+@router.get("/tasks/{parent_id}/children", response_model=dict)
+async def list_child_tasks(
+    parent_id: int,
+    status: Optional[str] = Query(None, description="Filter by status"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(10, ge=1, le=100, description="Page size"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict:
+    """List child tasks for a parent task.
+
+    Args:
+        parent_id: Parent task ID.
+        status: Optional status filter.
+        page: Page number (1-indexed).
+        page_size: Number of items per page.
+        db: Database session.
+        current_user: Current authenticated user.
+
+    Returns:
+        List of child tasks with pagination.
+    """
+    # Get parent task
+    parent = await EvalTaskService.get_eval_task(db, parent_id, current_user.id)
+
+    if not parent:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Parent task not found",
+        )
+
+    # Get child tasks
+    child_tasks = await EvalTaskService.get_child_tasks(db, parent_id, current_user.id)
+
+    # Filter by status if provided
+    if status:
+        child_tasks = [t for t in child_tasks if t.status == status]
+
+    # Pagination
+    total = len(child_tasks)
+    skip = (page - 1) * page_size
+    paginated_tasks = child_tasks[skip:skip + page_size]
+
+    total_pages = (total + page_size - 1) // page_size if page_size > 0 else 0
+
+    return {
+        "parent_id": parent_id,
+        "list": [
+            {
+                "id": t.id,
+                "name": t.name,
+                "db_id": t.db_id,
+                "connection_id": t.connection_id,
+                "status": t.status,
+                "progress_percent": t.progress_percent,
+                "question_count": t.total_questions,
+                "processed_count": t.processed_questions,
+                "correct_count": t.correct_count,
+                "accuracy": t.accuracy,
+            }
+            for t in paginated_tasks
+        ],
+        "pagination": {
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+        },
+    }

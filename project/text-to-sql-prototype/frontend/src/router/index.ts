@@ -15,6 +15,7 @@ const ConnectionsView = () => import('@/views/ConnectionsView.vue')
 const HistoryView = () => import('@/views/HistoryView.vue')
 const EvaluationsView = () => import('@/views/EvaluationsView.vue')
 const EvaluationDetailView = () => import('@/views/EvaluationDetailView.vue')
+const ParentTaskDetailView = () => import('@/views/eval/ParentTaskDetail.vue')
 const SettingsView = () => import('@/views/SettingsView.vue')
 
 const routes: RouteRecordRaw[] = [
@@ -94,6 +95,16 @@ const routes: RouteRecordRaw[] = [
         component: EvaluationDetailView,
         meta: {
           title: '评测详情',
+          icon: 'TrendCharts',
+          hideInMenu: true,
+        },
+      },
+      {
+        path: 'evaluations/parent/:id',
+        name: 'ParentTaskDetail',
+        component: ParentTaskDetailView,
+        meta: {
+          title: '父任务详情',
           icon: 'TrendCharts',
           hideInMenu: true,
         },

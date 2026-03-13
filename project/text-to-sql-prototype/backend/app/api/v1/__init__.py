@@ -1,7 +1,7 @@
 """API v1 router configuration."""
 from fastapi import APIRouter
 
-from app.api.v1 import api_keys, auth, connections, evaluations, queries, ws_evaluations
+from app.api.v1 import api_keys, auth, connections, dataset, evaluations, queries, ws_evaluations
 
 # Create main API router
 api_router = APIRouter()
@@ -20,6 +20,9 @@ api_router.include_router(queries.router)
 
 # Include evaluations routes
 api_router.include_router(evaluations.router)
+
+# Include dataset routes
+api_router.include_router(dataset.router)
 
 # Include WebSocket evaluation routes
 api_router.include_router(ws_evaluations.router)

@@ -18,6 +18,11 @@ class EvalTaskCreate(BaseModel):
     temperature: float = Field(0.7, ge=0.0, le=2.0, description="Sampling temperature")
     max_tokens: int = Field(2000, ge=100, le=8000, description="Maximum tokens")
 
+    # Parent-child task fields
+    parent_id: Optional[int] = Field(None, description="Parent task ID for child tasks")
+    task_type: str = Field("single", pattern="^(single|parent|child)$", description="Task type: single/parent/child")
+    db_id: Optional[str] = Field(None, max_length=100, description="Database identifier for child tasks")
+
     # 扩展的评估模式枚举值
     eval_mode: str = Field(
         "greedy_search",
@@ -68,7 +73,8 @@ class EvalTaskCreate(BaseModel):
                 "api_key_id": 1,
                 "eval_mode": "pass_at_k",
                 "sampling_count": 8,
-                "temperature": 0.8
+                "temperature": 0.8,
+                "task_type": "single"
             }
         }
     )
@@ -128,6 +134,61 @@ class EvalTaskResponse(BaseModel):
     updated_at: datetime
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
+
+    # Parent-child task fields
+    parent_id: Optional[int]
+    task_type: str
+    db_id: Optional[str]
+    connection_id: Optional[int]
+    child_count: int
+    completed_children: int
+
+
+class EvalTaskChildResponse(BaseModel):
+    """Schema for child task response (simplified for parent task view)."""
+    model_config = {"from_attributes": True}
+
+    id: int
+    name: str
+    task_type: str
+    db_id: Optional[str]
+    connection_id: Optional[int]
+    status: str
+    progress_percent: int
+    total_questions: Optional[int]
+    correct_count: Optional[int]
+    accuracy: Optional[float]
+    created_at: datetime
+    completed_at: Optional[datetime]
+
+
+class EvalTaskWithChildrenResponse(BaseModel):
+    """Schema for parent task response with children details."""
+    model_config = {"from_attributes": True}
+
+    id: int
+    user_id: int
+    name: str
+    task_type: str
+    dataset_type: str
+    dataset_path: Optional[str]
+    model_settings: Dict[str, Any] = Field(alias="model_config")
+    eval_mode: str
+    status: str
+    progress_percent: int
+    total_questions: Optional[int]
+    processed_questions: int
+    correct_count: Optional[int]
+    accuracy: Optional[float]
+    child_count: int
+    completed_children: int
+    log_path: Optional[str]
+    error_message: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    started_at: Optional[datetime]
+    completed_at: Optional[datetime]
+    children: List[EvalTaskChildResponse]
 
 
 class PaginationInfo(BaseModel):
@@ -215,3 +276,95 @@ class DatasetLoadResponse(BaseModel):
     """Schema for dataset load response."""
     questions: List[DatasetQuestion]
     total: int
+
+
+# Dataset Import Schemas
+
+class DatasetImportConnectionInfo(BaseModel):
+    """Schema for connection info in import response."""
+    db_id: str
+    connection_id: Optional[int]
+    status: str
+    error: Optional[str] = None
+
+
+class DatasetImportTaskInfo(BaseModel):
+    """Schema for task info in import response."""
+    db_id: str
+    task_id: int
+    connection_id: Optional[int]
+    status: str
+    error: Optional[str] = None
+
+
+class DatasetImportParentTaskInfo(BaseModel):
+    """Schema for parent task info in import response."""
+    id: int
+    name: str
+    task_type: str
+    child_count: int
+
+
+class DatasetImportConnectionsInfo(BaseModel):
+    """Schema for connections summary in import response."""
+    total: int
+    success: int
+    failed: int
+    items: List[DatasetImportConnectionInfo]
+
+
+class DatasetImportTasksInfo(BaseModel):
+    """Schema for tasks summary in import response."""
+    total: int
+    success: int
+    failed: int
+    parent_task: DatasetImportParentTaskInfo
+    children: List[DatasetImportTaskInfo]
+
+
+class DatasetImportResponse(BaseModel):
+    """Schema for dataset import response."""
+    success: bool
+    message: str
+    import_id: str
+    data_directory: str
+    parent_task_id: int
+    connections: DatasetImportConnectionsInfo
+    tasks: DatasetImportTasksInfo
+    total_questions: int
+
+
+class DatasetImportLogEntry(BaseModel):
+    """Schema for import log entry."""
+    timestamp: str
+    level: str
+    message: str
+
+
+class DatasetImportProgress(BaseModel):
+    """Schema for dataset import progress."""
+    import_id: str
+    status: str
+    current_step: int
+    total_steps: int
+    step_name: str
+    progress_percent: int
+    connections_created: int
+    total_connections: int
+    tasks_created: int
+    total_tasks: int
+    logs: List[DatasetImportLogEntry]
+
+
+class DatasetImportItem(BaseModel):
+    """Schema for dataset import list item."""
+    id: int
+    import_id: str
+    import_type: str
+    dataset_type: str
+    status: str
+    total_databases: int
+    connections_created: int
+    tasks_created: int
+    total_questions: int
+    created_at: str

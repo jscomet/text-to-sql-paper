@@ -251,79 +251,8 @@ export interface ToggleFavoriteRequest {
   is_favorite: boolean
 }
 
-// 评测任务类型
-export type EvalStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
-export type DatasetType = 'bird' | 'spider' | 'custom'
-export type EvalMode = 'greedy_search' | 'major_voting' | 'pass@k'
-
-export interface EvalProgress {
-  total: number
-  processed: number
-  correct: number
-  percentage: number
-}
-
-export interface EvalTask {
-  id: number
-  name: string
-  status: EvalStatus
-  dataset_type: DatasetType
-  eval_mode: EvalMode
-  progress: EvalProgress
-  created_at: string
-}
-
-export interface EvalTaskDetail extends EvalTask {
-  connection_id: number
-  dataset_path?: string
-  model_config: {
-    model?: string
-    temperature?: number
-    [key: string]: unknown
-  }
-  started_at?: string
-  completed_at?: string
-}
-
-export interface CreateEvalTaskRequest {
-  name: string
-  connection_id: number
-  dataset_type: DatasetType
-  dataset_path?: string
-  api_key_id: number
-  temperature?: number
-  max_tokens?: number
-  eval_mode?: EvalMode
-  config?: {
-    voting_count?: number
-  }
-}
-
-export interface EvalResult {
-  id: number
-  question_id: string
-  question: string
-  gold_sql: string
-  predicted_sql: string
-  is_correct: boolean
-  error_type?: 'syntax' | 'execution' | 'logic' | 'timeout' | 'generation'
-  error_message?: string
-  execution_time_ms?: number
-}
-
-export interface EvalStats {
-  total: number
-  correct: number
-  incorrect: number
-  failed: number
-  accuracy: number
-  execution_accuracy: number
-  by_difficulty: {
-    easy: { total: number; correct: number; accuracy: number }
-    medium: { total: number; correct: number; accuracy: number }
-    hard: { total: number; correct: number; accuracy: number }
-  }
-}
+// 从 eval.ts 重新导出评测相关类型
+export * from './eval'
 
 // API Key 类型
 export type FormatType = 'openai' | 'anthropic' | 'vllm'

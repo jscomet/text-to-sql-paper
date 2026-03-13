@@ -3,17 +3,20 @@ import type {
   CreateEvalTaskRequest,
   EvalTask,
   EvalTaskDetail,
+  EvalTaskWithChildren,
   EvalResult,
   EvalStats,
   PaginationParams,
   PaginationData,
+  TaskType,
+  BatchOperationResponse,
 } from '@/types'
 
 // ==================== 类型导出 ====================
 
-export type { CreateEvalTaskRequest, EvalTask, EvalTaskDetail, EvalResult, EvalStats }
+export type { CreateEvalTaskRequest, EvalTask, EvalTaskDetail, EvalTaskWithChildren, EvalResult, EvalStats }
 export type DatasetType = 'bird' | 'spider' | 'custom'
-export type EvalMode = 'greedy_search' | 'major_voting' | 'pass@k'
+export type EvalMode = 'greedy_search' | 'major_voting' | 'pass@k' | 'check_correct'
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 export type ErrorType = 'syntax' | 'execution' | 'logic' | 'timeout' | 'generation'
 export type CreateEvalTaskParams = CreateEvalTaskRequest
@@ -22,6 +25,8 @@ export type EvalTaskResponse = PaginationData<EvalTask>
 export type EvalResultsResponse = PaginationData<EvalResult>
 export interface EvalTaskParams extends PaginationParams {
   status?: TaskStatus
+  task_type?: TaskType
+  parent_id?: number
 }
 
 // ==================== API 函数 ====================
@@ -87,4 +92,44 @@ export const cancelEvalTask = (id: number): Promise<{ id: number; status: TaskSt
  */
 export const deleteEvalTask = (id: number): Promise<void> => {
   return request.delete(`/eval/tasks/${id}`) as Promise<void>
+}
+
+/**
+ * 获取父任务详情（包含子任务列表）
+ * @param id 父任务ID
+ */
+export const getParentTaskDetail = (id: number): Promise<EvalTaskWithChildren> => {
+  return request.get(`/eval/tasks/${id}/children`) as Promise<EvalTaskWithChildren>
+}
+
+/**
+ * 批量启动父任务下的所有子任务
+ * @param parentId 父任务ID
+ */
+export const startAllChildren = (parentId: number): Promise<BatchOperationResponse> => {
+  return request.post(`/eval/tasks/${parentId}/start-all`) as Promise<BatchOperationResponse>
+}
+
+/**
+ * 重试失败的子任务
+ * @param parentId 父任务ID
+ */
+export const retryFailedChildren = (parentId: number): Promise<BatchOperationResponse> => {
+  return request.post(`/eval/tasks/${parentId}/retry-failed`) as Promise<BatchOperationResponse>
+}
+
+/**
+ * 批量取消任务
+ * @param taskIds 任务ID列表
+ */
+export const batchCancelTasks = (taskIds: number[]): Promise<BatchOperationResponse> => {
+  return request.post('/eval/tasks/batch-cancel', { task_ids: taskIds }) as Promise<BatchOperationResponse>
+}
+
+/**
+ * 批量删除任务
+ * @param taskIds 任务ID列表
+ */
+export const batchDeleteTasks = (taskIds: number[]): Promise<BatchOperationResponse> => {
+  return request.post('/eval/tasks/batch-delete', { task_ids: taskIds }) as Promise<BatchOperationResponse>
 }
