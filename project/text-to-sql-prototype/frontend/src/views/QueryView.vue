@@ -648,136 +648,20 @@ onMounted(() => {
               </div>
             </div>
 
-            <!-- 查询结果头部（放在自然语言查询卡片内） -->
-            <div v-if="queryResult || executing || errorMessage" class="query-result-header">
-              <div class="result-status-bar">
-                <div class="result-status">
-                  <template v-if="executing">
-                    <el-icon class="is-loading"><Loading /></el-icon>
-                    <span>查询中...</span>
-                  </template>
-                  <template v-else-if="errorMessage">
-                    <el-icon color="var(--danger-color)"><CircleClose /></el-icon>
-                    <span class="error-text">查询失败</span>
-                  </template>
-                  <template v-else-if="queryResult?.rows?.length">
-                    <el-icon color="var(--success-color)"><CircleCheck /></el-icon>
-                    <span>查询成功</span>
-                    <el-tag size="small" type="info">{{ queryResult.rowCount }} 行</el-tag>
-                    <el-tag size="small" type="info">{{ queryResult.executionTime.toFixed(2) }}ms</el-tag>
-                  </template>
-                  <template v-else>
-                    <el-icon><InfoFilled /></el-icon>
-                    <span>暂无数据</span>
-                  </template>
-                </div>
-                <div v-if="queryResult?.rows?.length && !executing" class="result-export-actions">
-                  <el-button link size="small" @click="handleExport('csv')">
-                    <el-icon><Download /></el-icon>导出 CSV
-                  </el-button>
-                  <el-button link size="small" @click="handleExport('json')">
-                    <el-icon><Document /></el-icon>导出 JSON
-                  </el-button>
-                </div>
-              </div>
-
-              <!-- 执行的 SQL 预览 -->
-              <div v-if="generatedSQL && queryResult" class="executed-sql-preview">
-                <div class="sql-label">执行SQL:</div>
-                <pre class="sql-code">{{ generatedSQL }}</pre>
-              </div>
-
-              <!-- 错误提示 -->
-              <el-alert
-                v-if="errorMessage && !executing"
-                :title="errorMessage"
-                type="error"
-                :closable="false"
-                show-icon
-                class="query-error-alert"
-              >
-                <template #default>
-                  <el-button link type="primary" @click="handleExecuteSQL">重试</el-button>
-                </template>
-              </el-alert>
+            <!-- 查询结果（放在自然语言查询卡片内） -->
+            <div v-if="queryResult || executing || errorMessage" class="query-result-section">
+              <QueryResult
+                :data="queryResult?.rows || []"
+                :columns="queryResult?.columns?.map(col => ({ prop: col, label: col })) || []"
+                :loading="executing"
+                :error="errorMessage"
+                :execution-time="queryResult?.executionTime || 0"
+                :row-count="queryResult?.rowCount || 0"
+                :sql="generatedSQL"
+                @export="handleExport"
+                @retry="handleExecuteSQL"
+              />
             </div>
-          </div>
-        </el-card>
-
-        <!-- SQL 编辑器 (保留在卡片外用于显示详细结果) -->
-        <el-card v-if="generatedSQL" shadow="never" class="sql-card" style="display: none;">
-          <template #header>
-            <div class="card-header">
-              <div class="sql-header-left">
-                <span>生成的 SQL</span>
-                <el-tag v-if="generatedConfidence > 0" size="small" :type="generatedConfidence > 0.8 ? 'success' : generatedConfidence > 0.5 ? 'warning' : 'danger'">
-                  置信度: {{ (generatedConfidence * 100).toFixed(1) }}%
-                </el-tag>
-              </div>
-              <div class="sql-header-actions">
-                <el-button link size="small" @click="handleCopySQL">
-                  <el-icon><DocumentCopy /></el-icon>
-                  复制
-                </el-button>
-                <el-button
-                  type="primary"
-                  size="small"
-                  :loading="executing"
-                  :disabled="!canExecute"
-                  @click="handleExecuteSQL"
-                >
-                  <el-icon><VideoPlay /></el-icon>
-                  执行
-                </el-button>
-              </div>
-            </div>
-          </template>
-
-          <div class="sql-section">
-            <SqlEditor
-              v-model="generatedSQL"
-              height="150px"
-              placeholder="生成的 SQL 将显示在这里..."
-              @run="handleExecuteSQL"
-            />
-
-            <div v-if="generatedExplanation" class="sql-explanation">
-              <el-icon><InfoFilled /></el-icon>
-              <span>{{ generatedExplanation }}</span>
-            </div>
-          </div>
-        </el-card>
-
-        <!-- 查询结果 -->
-        <el-card v-if="generatedSQL" shadow="never" class="result-card">
-          <template #header>
-            <div class="card-header">
-              <span>查询结果</span>
-              <div v-if="queryResult" class="result-actions">
-                <el-button link size="small" @click="handleExport('csv')">
-                  <el-icon><Download /></el-icon>
-                  导出 CSV
-                </el-button>
-                <el-button link size="small" @click="handleExport('json')">
-                  <el-icon><Document /></el-icon>
-                  导出 JSON
-                </el-button>
-              </div>
-            </div>
-          </template>
-
-          <div class="result-section">
-            <QueryResult
-              :data="queryResult?.rows || []"
-              :columns="queryResult?.columns.map(col => ({ prop: col, label: col })) || []"
-              :loading="executing"
-              :error="errorMessage"
-              :execution-time="queryResult?.executionTime || 0"
-              :row-count="queryResult?.rowCount || 0"
-              :sql="generatedSQL"
-              @export="handleExport"
-              @retry="handleExecuteSQL"
-            />
           </div>
         </el-card>
       </el-col>
@@ -901,22 +785,11 @@ onMounted(() => {
       flex-direction: column;
       gap: 16px;
 
-      .query-input-card,
-      .sql-card,
-      .result-card {
+      .query-input-card {
         flex: none;
 
         :deep(.el-card__body) {
           overflow: visible;
-        }
-      }
-
-      .result-card {
-        flex: 1;
-        min-height: 300px;
-
-        .result-section {
-          height: 100%;
         }
       }
 
@@ -997,84 +870,20 @@ onMounted(() => {
           }
         }
 
-        // 查询结果头部（放在自然语言查询卡片内）
-        .query-result-header {
+        // 查询结果区域（放在自然语言查询卡片内）
+        .query-result-section {
           margin-top: 16px;
           padding-top: 16px;
           border-top: 1px solid var(--el-border-color-light);
 
-          .result-status-bar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 12px;
-
-            .result-status {
-              display: flex;
-              align-items: center;
-              gap: 8px;
-              font-size: 14px;
-
-              .error-text {
-                color: var(--el-color-danger);
-              }
-
-              .el-tag {
-                margin-left: 4px;
-              }
-            }
-
-            .result-export-actions {
-              display: flex;
-              gap: 8px;
-            }
-          }
-
-          .executed-sql-preview {
-            margin-bottom: 12px;
-
-            .sql-label {
-              font-size: 13px;
-              color: var(--el-text-color-secondary);
-              margin-bottom: 4px;
-            }
-
-            .sql-code {
-              margin: 0;
-              padding: 8px 12px;
-              background: var(--el-fill-color-light);
-              border-radius: 4px;
-              font-family: monospace;
-              font-size: 13px;
-              color: var(--el-text-color-primary);
-              overflow-x: auto;
-            }
-          }
-
-          .query-error-alert {
-            margin-top: 12px;
+          .result-table-wrapper {
+            border: 1px solid var(--el-border-color-light);
+            border-radius: 4px;
+            overflow: hidden;
           }
         }
       }
 
-      .sql-section {
-        .sql-explanation {
-          display: flex;
-          align-items: flex-start;
-          gap: 8px;
-          margin-top: 12px;
-          padding: 12px;
-          background: var(--el-color-info-light-9);
-          border-radius: 4px;
-          font-size: 13px;
-          color: var(--el-text-color-regular);
-
-          .el-icon {
-            margin-top: 2px;
-            color: var(--el-color-info);
-          }
-        }
-      }
     }
 
     .history-col {
