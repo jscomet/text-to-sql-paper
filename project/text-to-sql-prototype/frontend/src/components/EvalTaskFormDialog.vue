@@ -3,6 +3,7 @@ import { ref, reactive, watch, computed, onMounted } from 'vue'
 import { ElMessage, type FormInstance, type FormRules, type UploadFile } from 'element-plus'
 import type { Connection, ApiKey } from '@/types'
 import { getApiKeys } from '@/api/apiKeys'
+import InferenceModeSelector, { type InferenceConfig } from '@/components/inference/InferenceModeSelector.vue'
 
 interface FormData {
   name: string
@@ -13,6 +14,8 @@ interface FormData {
   temperature: number
   max_tokens: number | undefined
   eval_mode: string
+  // 高级推理配置
+  inference_config: InferenceConfig
 }
 
 const props = defineProps<{
@@ -33,6 +36,11 @@ const emit = defineEmits<{
       temperature: number
       max_tokens?: number
       eval_mode: string
+      // 高级推理配置参数
+      sampling_count?: number
+      vote_count?: number
+      max_iterations?: number
+      correction_strategy?: string
     }
   ): void
 }>()
@@ -48,6 +56,9 @@ const formData = reactive<FormData>({
   temperature: 0.0,
   max_tokens: undefined,
   eval_mode: 'greedy_search',
+  inference_config: {
+    mode: 'greedy_search'
+  }
 })
 
 // API Keys 列表
@@ -86,11 +97,12 @@ const loadApiKeys = async () => {
   }
 }
 
-// 评测模式选项
+// 评测模式选项 - 与后端保持一致
 const evalModeOptions = [
   { value: 'greedy_search', label: '单模型 (Greedy Search)' },
-  { value: 'major_voting', label: '多数投票 (Major Voting)' },
-  { value: 'pass@k', label: 'Pass@k' },
+  { value: 'majority_vote', label: '多数投票 (Majority Vote)' },
+  { value: 'pass_at_k', label: 'Pass@K' },
+  { value: 'check_correct', label: '自检修正 (Check-Correct)' },
 ]
 
 // 表单验证规则
@@ -141,6 +153,22 @@ watch(
   }
 )
 
+// 监听评测模式变化，同步更新推理配置
+watch(
+  () => formData.eval_mode,
+  (newMode) => {
+    const modeMap: Record<string, InferenceConfig['mode']> = {
+      'greedy_search': 'greedy_search',
+      'majority_vote': 'majority_vote',
+      'pass_at_k': 'pass_at_k',
+      'check_correct': 'check_correct'
+    }
+    formData.inference_config = {
+      mode: modeMap[newMode] || 'greedy_search'
+    }
+  }
+)
+
 // 重置表单
 const resetForm = () => {
   formData.name = ''
@@ -151,6 +179,7 @@ const resetForm = () => {
   formData.temperature = 0.0
   formData.max_tokens = undefined
   formData.eval_mode = 'greedy_search'
+  formData.inference_config = { mode: 'greedy_search' }
   fileList.value = []
   formRef.value?.resetFields()
 }
@@ -199,7 +228,8 @@ const handleSubmit = async () => {
         return
       }
 
-      emit('submit', {
+      // 构建提交数据，包含高级推理配置
+      const submitData: Parameters<typeof emit>[1] = {
         name: formData.name,
         connection_id: formData.connection_id as number,
         dataset_type: formData.dataset_type,
@@ -208,7 +238,21 @@ const handleSubmit = async () => {
         temperature: formData.temperature,
         max_tokens: formData.max_tokens,
         eval_mode: formData.eval_mode,
-      })
+      }
+
+      // 根据推理模式添加对应的配置参数
+      const config = formData.inference_config
+      if (config.mode === 'majority_vote' || config.mode === 'pass_at_k') {
+        submitData.sampling_count = config.samplingCount
+        if (config.mode === 'majority_vote') {
+          submitData.vote_count = config.voteCount
+        }
+      } else if (config.mode === 'check_correct') {
+        submitData.max_iterations = config.maxIterations
+        submitData.correction_strategy = config.correctionStrategy
+      }
+
+      emit('submit', submitData)
     }
   })
 }
@@ -351,6 +395,15 @@ const handleCancel = () => {
         </el-select>
       </el-form-item>
 
+      <!-- 高级推理配置 -->
+      <el-divider content-position="left">高级推理配置</el-divider>
+
+      <InferenceModeSelector
+        v-model="formData.inference_config"
+        :disabled="false"
+        label-width="120px"
+      />
+
       <!-- Temperature 滑块 -->
       <el-form-item label="Temperature">
         <div class="slider-wrapper">
@@ -384,6 +437,15 @@ const handleCancel = () => {
         <div class="input-hint">留空表示不限制最大 token 数</div>
       </el-form-item>
 
+      <!-- 高级推理配置 -->
+      <el-divider content-position="left">高级推理配置</el-divider>
+
+      <InferenceModeSelector
+        v-model="formData.inference_config"
+        :disabled="false"
+        label-width="120px"
+      />
+
       <!-- 提示信息 -->
       <el-alert
         v-if="formData.eval_mode !== 'greedy_search'"
@@ -391,7 +453,7 @@ const handleCancel = () => {
         type="warning"
         :closable="false"
         show-icon
-        style="margin-bottom: 20px; margin-left: 120px"
+        style="margin-top: 20px; margin-left: 120px"
       />
     </el-form>
 

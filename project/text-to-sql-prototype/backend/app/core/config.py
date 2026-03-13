@@ -57,6 +57,13 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
 
+    # Advanced Inference Settings
+    max_sampling_count: int = 8  # Maximum K for Pass@K sampling
+    max_iterations: int = 3  # Maximum iterations for Check-Correct
+    parallel_workers: int = 4  # Parallel workers for SQL execution
+    default_temperature: float = 0.7  # Default temperature for sampling
+    default_timeout_seconds: float = 30.0  # Default SQL execution timeout
+
     @property
     def is_development(self) -> bool:
         """Check if running in development mode."""

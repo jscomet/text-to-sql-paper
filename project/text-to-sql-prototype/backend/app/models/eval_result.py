@@ -1,8 +1,8 @@
 """Evaluation result model."""
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from sqlalchemy import String, ForeignKey, Index, Float, Text, Boolean
+from sqlalchemy import String, ForeignKey, Index, Float, Text, Boolean, Integer, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -30,6 +30,23 @@ class EvalResult(Base):
     error_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     execution_time_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    iteration_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0
+    )
+    correction_history: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(
+        JSON,
+        nullable=True
+    )
+    candidate_sqls: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(
+        JSON,
+        nullable=True
+    )
+    confidence_score: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
 
     # Relationships

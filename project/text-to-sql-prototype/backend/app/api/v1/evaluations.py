@@ -68,6 +68,28 @@ async def create_eval_task(
         "max_tokens": request.max_tokens,
     }
 
+    # Build advanced inference config based on eval_mode
+    inference_config = {}
+    if request.eval_mode == "pass_at_k":
+        inference_config = {
+            "sampling_count": request.sampling_count,
+            "sampling_config": request.sampling_config or {},
+        }
+    elif request.eval_mode == "check_correct":
+        inference_config = {
+            "max_iterations": request.max_iterations,
+            "correction_strategy": request.correction_strategy,
+            "correction_config": request.correction_config or {},
+        }
+    elif request.eval_mode == "majority_vote":
+        inference_config = {
+            "vote_count": request.vote_count,
+        }
+
+    # Merge inference config into model_config for storage
+    if inference_config:
+        model_config["inference"] = inference_config
+
     # Create task data
     task_data = EvalTaskCreate(
         name=request.name,
@@ -102,6 +124,12 @@ async def create_eval_task(
         api_key=api_key_config["api_key"],
         format_type=api_key_config["format_type"],
         base_url=api_key_config.get("base_url"),
+        # Advanced inference parameters
+        sampling_count=request.sampling_count if request.eval_mode == "pass_at_k" else None,
+        max_iterations=request.max_iterations if request.eval_mode == "check_correct" else None,
+        correction_strategy=request.correction_strategy if request.eval_mode == "check_correct" else None,
+        sampling_config=request.sampling_config,
+        correction_config=request.correction_config,
     )
 
     logger.info(f"Created and started eval task {task.id} for user {current_user.id}")

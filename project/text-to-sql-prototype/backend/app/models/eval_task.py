@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from sqlalchemy import String, ForeignKey, Index, Integer, Float, JSON, Text
+from sqlalchemy import String, ForeignKey, Index, Integer, Float, JSON, Text, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -30,6 +30,20 @@ class EvalTask(Base):
         String(50),
         nullable=False,
         default="greedy_search"
+    )
+    max_iterations: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=3
+    )
+    sampling_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1
+    )
+    correction_strategy: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON,
+        nullable=True
     )
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     progress_percent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

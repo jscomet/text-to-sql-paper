@@ -1,6 +1,6 @@
 """Query API routes for NL2SQL operations."""
 import time
-from typing import Optional
+from typing import List, Optional
 
 import sqlparse
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -16,8 +16,12 @@ from app.models.db_connection import DBConnection
 from app.models.query_history import QueryHistory
 from app.models.user import User
 from app.schemas.query import (
+    CandidateSQL,
+    CorrectionRecord,
     QueryExecuteRequest,
     QueryExecuteResponse,
+    QueryGenerateAdvancedRequest,
+    QueryGenerateAdvancedResponse,
     QueryGenerateRequest,
     QueryGenerateResponse,
     QueryHistoryItem,
@@ -593,5 +597,291 @@ async def delete_query_history(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Query not found",
+        )
+
+
+@router.post("/generate-advanced", response_model=QueryGenerateAdvancedResponse)
+async def generate_sql_advanced_endpoint(
+    request: QueryGenerateAdvancedRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> QueryGenerateAdvancedResponse:
+    """Generate SQL using advanced inference modes.
+
+    Supports Pass@K, CheckCorrect, MajorityVote and single mode inference.
+
+    Args:
+        request: Advanced generation request with reasoning mode and configuration.
+        current_user: Current authenticated user.
+        db: Database session.
+
+    Returns:
+        Generated SQL with candidates, confidence score and metadata.
+    """
+    start_time = time.time()
+
+    # Get connection
+    connection = await get_connection_with_access_check(
+        request.connection_id, current_user.id, db
+    )
+
+    try:
+        # Get schema
+        engine = ConnectionService.get_db_engine(connection)
+        schema_service = SchemaService()
+        tables = await schema_service.get_all_schemas(engine)
+        schema_text = SchemaService.build_schema_text(tables)
+
+        # Get API key configuration for provider
+        provider = request.provider or settings.llm_provider
+        api_key_config = await get_user_api_key_config(
+            current_user.id, provider, db, prefer_default=True
+        )
+
+        # Fall back to environment variable if no user-specific key
+        if not api_key_config:
+            api_key_config = {
+                "api_key": settings.llm_api_key,
+                "base_url": settings.llm_base_url,
+                "model": settings.llm_model,
+                "format_type": settings.llm_format,
+            }
+
+        # Check if API key is configured
+        if not api_key_config or not api_key_config.get("api_key"):
+            error_msg = f"未配置 {provider} API Key。请在系统设置中添加 API Key。"
+            return QueryGenerateAdvancedResponse(
+                sql="",
+                reasoning_mode=request.reasoning_mode,
+                execution_time_ms=0,
+                confidence_score=0.0,
+            )
+
+        # Build model config
+        dialect = get_sql_dialect(connection.db_type)
+        model_config = {
+            "model": api_key_config["model"],
+            "temperature": request.temperature,
+        }
+
+        # Initialize result variables
+        predicted_sql = ""
+        candidates: list[CandidateSQL] = []
+        correction_history: list[CorrectionRecord] = []
+        iteration_count = 0
+        confidence = 0.9
+
+        # Generate SQL based on reasoning mode
+        if request.reasoning_mode == "single":
+            # Single generation (same as /generate)
+            predicted_sql = await generate_sql(
+                question=request.question,
+                schema_text=schema_text,
+                provider=provider,
+                model_config=model_config,
+                dialect=dialect,
+                api_key=api_key_config["api_key"],
+                format_type=api_key_config["format_type"],
+                base_url=api_key_config["base_url"],
+            )
+
+        elif request.reasoning_mode == "pass_at_k":
+            # Pass@K: Generate K candidates, return first correct one
+            k = request.k_candidates
+            pred_sqls = []
+
+            for i in range(k):
+                sql = await generate_sql(
+                    question=request.question,
+                    schema_text=schema_text,
+                    provider=provider,
+                    model_config=model_config,
+                    dialect=dialect,
+                    api_key=api_key_config["api_key"],
+                    format_type=api_key_config["format_type"],
+                    base_url=api_key_config["base_url"],
+                )
+                pred_sqls.append(sql)
+
+            # Evaluate each candidate
+            valid_count = 0
+            for sql in pred_sqls:
+                # Execute to check validity
+                executor = SQLExecutorService(timeout_seconds=10.0)
+                exec_result = await executor.execute_sql(
+                    sql=sql,
+                    db_session=db,
+                )
+                is_valid = exec_result["success"]
+                if is_valid:
+                    valid_count += 1
+
+                candidate = CandidateSQL(
+                    sql=sql,
+                    is_valid=is_valid,
+                    execution_result=exec_result.get("rows") if is_valid else None,
+                    vote_count=None,
+                )
+                candidates.append(candidate)
+
+                # Use first valid SQL as the result
+                if is_valid and not predicted_sql:
+                    predicted_sql = sql
+
+            # If no valid SQL, use the first one
+            if not predicted_sql and pred_sqls:
+                predicted_sql = pred_sqls[0]
+
+            # Calculate confidence based on valid ratio
+            confidence = valid_count / k if k > 0 else 0.0
+
+            # If not returning all candidates, clear the list
+            if not request.return_all_candidates:
+                candidates = []
+
+        elif request.reasoning_mode == "majority_vote":
+            # MajorityVote: Generate K candidates, vote for best
+            k = request.k_candidates
+            pred_sqls = []
+
+            for i in range(k):
+                sql = await generate_sql(
+                    question=request.question,
+                    schema_text=schema_text,
+                    provider=provider,
+                    model_config=model_config,
+                    dialect=dialect,
+                    api_key=api_key_config["api_key"],
+                    format_type=api_key_config["format_type"],
+                    base_url=api_key_config["base_url"],
+                )
+                pred_sqls.append(sql)
+
+            # Execute and group by results for voting
+            from app.services.evaluator import MajorityVoter
+
+            predicted_sql, voting_info = await MajorityVoter.majority_voting(
+                engine=engine,
+                pred_sqls=pred_sqls,
+                timeout=30,
+            )
+
+            # Build candidates with vote counts
+            for sql in pred_sqls:
+                vote_count = voting_info.get("votes", {}).get(sql, 0)
+                is_winner = sql == predicted_sql
+
+                candidate = CandidateSQL(
+                    sql=sql,
+                    is_valid=True,  # All were executed successfully
+                    execution_result=None,
+                    vote_count=vote_count,
+                )
+                candidates.append(candidate)
+
+            confidence = voting_info.get("confidence", 0.9)
+
+        elif request.reasoning_mode == "check_correct":
+            # CheckCorrect: Iterative generation with self-correction
+            max_iter = request.max_iterations
+            enable_correction = request.enable_self_correction
+
+            for iteration in range(max_iter):
+                iteration_count = iteration + 1
+
+                sql = await generate_sql(
+                    question=request.question,
+                    schema_text=schema_text,
+                    provider=provider,
+                    model_config=model_config,
+                    dialect=dialect,
+                    api_key=api_key_config["api_key"],
+                    format_type=api_key_config["format_type"],
+                    base_url=api_key_config["base_url"],
+                )
+
+                # Execute to check validity
+                executor = SQLExecutorService(timeout_seconds=10.0)
+                exec_result = await executor.execute_sql(
+                    sql=sql,
+                    db_session=db,
+                )
+                is_valid = exec_result["success"]
+
+                error_type = None
+                error_message = None
+                correction_prompt = None
+
+                if not is_valid:
+                    error_type = "execution_error"
+                    error_message = exec_result.get("error", "Unknown error")
+
+                    if enable_correction and iteration < max_iter - 1:
+                        correction_prompt = f"The SQL execution failed with error: {error_message}. Please fix it."
+                        # Add correction context to model_config for next iteration
+                        if "messages" not in model_config:
+                            model_config["messages"] = []
+                        model_config["messages"].append({
+                            "role": "user",
+                            "content": correction_prompt,
+                        })
+
+                # Record correction history
+                correction_record = CorrectionRecord(
+                    iteration=iteration + 1,
+                    sql=sql,
+                    error_type=error_type,
+                    error_message=error_message,
+                    correction_prompt=correction_prompt,
+                )
+                correction_history.append(correction_record)
+
+                if is_valid:
+                    predicted_sql = sql
+                    break
+
+            # If no valid SQL found, use the last one
+            if not predicted_sql and correction_history:
+                predicted_sql = correction_history[-1].sql
+
+            # Calculate confidence based on iterations needed
+            if predicted_sql and is_valid:
+                confidence = 0.95
+            else:
+                confidence = max(0.5, 1.0 - (iteration_count * 0.15))
+
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid reasoning mode: {request.reasoning_mode}",
+            )
+
+        execution_time_ms = (time.time() - start_time) * 1000
+
+        # Format the final SQL
+        if predicted_sql:
+            predicted_sql = sqlparse.format(predicted_sql, reindent=True, keyword_case="upper")
+
+        return QueryGenerateAdvancedResponse(
+            sql=predicted_sql,
+            reasoning_mode=request.reasoning_mode,
+            candidates=candidates if candidates else None,
+            pass_at_k_score=confidence if request.reasoning_mode == "pass_at_k" else None,
+            iteration_count=iteration_count if request.reasoning_mode == "check_correct" else None,
+            correction_history=correction_history if correction_history else None,
+            execution_time_ms=execution_time_ms,
+            confidence_score=confidence,
+        )
+
+    except Exception as e:
+        logger.error(f"Advanced SQL generation failed: {e}")
+        execution_time_ms = (time.time() - start_time) * 1000
+
+        return QueryGenerateAdvancedResponse(
+            sql="",
+            reasoning_mode=request.reasoning_mode,
+            execution_time_ms=execution_time_ms,
+            confidence_score=0.0,
+            error=str(e),
         )
 # DEEPSEEK_FIXED_20240313

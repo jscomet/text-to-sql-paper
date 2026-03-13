@@ -2,11 +2,14 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class EvalTaskCreate(BaseModel):
-    """Schema for creating an evaluation task."""
+    """Schema for creating an evaluation task.
+
+    Supports advanced inference modes including Pass@K and CheckCorrect.
+    """
     name: str = Field(..., min_length=1, max_length=200, description="Task name")
     dataset_type: str = Field(..., pattern="^(spider|bird|custom)$", description="Dataset type")
     dataset_path: Optional[str] = Field(None, max_length=500, description="Path to custom dataset")
@@ -14,8 +17,86 @@ class EvalTaskCreate(BaseModel):
     api_key_id: int = Field(..., description="API Key ID")
     temperature: float = Field(0.7, ge=0.0, le=2.0, description="Sampling temperature")
     max_tokens: int = Field(2000, ge=100, le=8000, description="Maximum tokens")
-    eval_mode: str = Field("greedy_search", pattern="^(greedy_search|majority_vote)$", description="Evaluation mode")
+
+    # 扩展的评估模式枚举值
+    eval_mode: str = Field(
+        "greedy_search",
+        pattern="^(greedy_search|majority_vote|pass_at_k|check_correct)$",
+        description="Evaluation mode: greedy_search/majority_vote/pass_at_k/check_correct"
+    )
+
+    # 保留的现有字段（用于 majority_vote 模式）
     vote_count: int = Field(5, ge=3, le=10, description="Number of votes for majority voting")
+
+    # 新增字段 - 用于 Pass@K 模式
+    sampling_count: int = Field(
+        8,
+        ge=1,
+        le=16,
+        description="Pass@K的K值，采样数量"
+    )
+
+    # 新增字段 - 用于 CheckCorrect 模式
+    max_iterations: int = Field(
+        3,
+        ge=1,
+        le=5,
+        description="CheckCorrect最大迭代次数"
+    )
+    correction_strategy: str = Field(
+        "none",
+        description="修正策略: none/self_correction/execution_feedback/multi_agent"
+    )
+
+    # 配置对象 - 用于存储采样和修正的详细配置
+    sampling_config: Optional[Dict[str, Any]] = Field(
+        None,
+        description="采样参数配置，如temperature_schedule, top_p等"
+    )
+    correction_config: Optional[Dict[str, Any]] = Field(
+        None,
+        description="修正策略配置，如error_threshold, retry_policy等"
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "name": "BIRD Pass@8 Evaluation",
+                "dataset_type": "bird",
+                "dataset_path": "/data/bird/dev.json",
+                "connection_id": 2,
+                "api_key_id": 1,
+                "eval_mode": "pass_at_k",
+                "sampling_count": 8,
+                "temperature": 0.8
+            }
+        }
+    )
+
+    @field_validator("sampling_count")
+    @classmethod
+    def validate_sampling_count(cls, v: int) -> int:
+        """Validate sampling_count is within valid range."""
+        if v < 1 or v > 16:
+            raise ValueError("sampling_count must be between 1 and 16")
+        return v
+
+    @field_validator("max_iterations")
+    @classmethod
+    def validate_max_iterations(cls, v: int) -> int:
+        """Validate max_iterations is within valid range."""
+        if v < 1 or v > 5:
+            raise ValueError("max_iterations must be between 1 and 5")
+        return v
+
+    @field_validator("correction_strategy")
+    @classmethod
+    def validate_correction_strategy(cls, v: str) -> str:
+        """Validate correction_strategy is valid."""
+        valid_strategies = ["none", "self_correction", "execution_feedback", "multi_agent"]
+        if v not in valid_strategies:
+            raise ValueError(f"correction_strategy must be one of: {', '.join(valid_strategies)}")
+        return v
 
 
 class EvalTaskUpdate(BaseModel):

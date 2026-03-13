@@ -10,7 +10,7 @@
 | **版本** | v0.1.0 |
 | **日期** | 2026-03-13 |
 | **编写人** | api-designer |
-| **文档状态** | 草稿 |
+| **文档状态** | 已发布 |
 
 ### 1.2 基础信息
 
@@ -890,11 +890,117 @@ ws://localhost:8000/api/v1/ws/advanced-inference/{task_id}
 
 ---
 
-## 10. 版本历史
+## 10. EvalTask 扩展字段说明
+
+### 10.1 新增字段概览
+
+EvalTask 模型扩展了以下字段以支持高级推理功能：
+
+| 字段 | 类型 | 说明 | 适用模式 |
+|------|------|------|----------|
+| `eval_mode` | string | 评估模式：greedy_search/majority_vote/pass_at_k/check_correct | 所有模式 |
+| `sampling_count` | integer | Pass@K的K值，采样数量 | pass_at_k, majority_vote |
+| `max_iterations` | integer | CheckCorrect最大迭代次数 | check_correct |
+| `correction_strategy` | string | 修正策略：none/self_correction/execution_feedback/multi_agent | check_correct |
+| `vote_count` | integer | 多数投票的票数（保留字段） | majority_vote |
+| `sampling_config` | object | 采样参数配置，如temperature_schedule, top_p等 | pass_at_k, majority_vote |
+| `correction_config` | object | 修正策略配置，如error_threshold, retry_policy等 | check_correct |
+
+### 10.2 EvalTaskResponse 扩展字段
+
+```python
+class EvalTaskResponse(BaseModel):
+    """评测任务响应 Schema"""
+    id: int
+    user_id: int
+    name: str
+    dataset_type: str
+    dataset_path: Optional[str]
+    model_settings: Dict[str, Any] = Field(alias="model_config")
+    eval_mode: str                          # 新增：评估模式
+    status: str
+    progress_percent: int
+    total_questions: Optional[int]
+    processed_questions: int
+    correct_count: Optional[int]
+    accuracy: Optional[float]
+    log_path: Optional[str]
+    error_message: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    started_at: Optional[datetime]
+    completed_at: Optional[datetime]
+```
+
+### 10.3 EvalResultResponse 扩展字段
+
+```python
+class EvalResultResponse(BaseModel):
+    """评测结果响应 Schema"""
+    id: int
+    task_id: int
+    question_id: str
+    nl_question: str
+    db_id: Optional[str]
+    gold_sql: str
+    predicted_sql: Optional[str]
+    is_correct: Optional[bool]
+    error_type: Optional[str]
+    error_message: Optional[str]
+    execution_time_ms: Optional[float]
+
+    # 新增字段
+    iteration_count: Optional[int]          # CheckCorrect实际迭代次数
+    correction_history: Optional[List[Dict]] # CheckCorrect修正历史
+    candidate_sqls: Optional[List[str]]     # Pass@K所有候选SQL
+    confidence_score: Optional[float]       # 置信度分数
+
+    created_at: datetime
+```
+
+### 10.4 修正历史结构
+
+```json
+{
+  "correction_history": [
+    {
+      "iteration": 1,
+      "sql": "SELECT department, COUNT(salary) as avg_salary FROM employees GROUP BY department",
+      "error_type": "semantic_error",
+      "error_message": "使用了 COUNT 而不是 AVG",
+      "correction_prompt": "请修正：应该使用 AVG 函数计算平均工资"
+    },
+    {
+      "iteration": 2,
+      "sql": "SELECT department, AVG(salary) as avg_salary FROM employees GROUP BY department",
+      "error_type": null,
+      "error_message": null,
+      "correction_prompt": null
+    }
+  ]
+}
+```
+
+### 10.5 候选 SQL 结构
+
+```json
+{
+  "candidate_sqls": [
+    "SELECT product_name, SUM(sales) as total_sales FROM sales GROUP BY product_name ORDER BY total_sales DESC LIMIT 5",
+    "SELECT product_name, SUM(sales) FROM sales GROUP BY product_name ORDER BY SUM(sales) DESC LIMIT 5",
+    "SELECT * FROM sales ORDER BY sales DESC LIMIT 5"
+  ]
+}
+```
+
+---
+
+## 11. 版本历史
 
 | 版本 | 日期 | 修改内容 | 作者 |
 |------|------|----------|------|
 | v0.1.0 | 2026-03-13 | 初始版本，定义高级推理 API 接口 | api-designer |
+| v1.0.0 | 2026-03-13 | 更新为正式版本，添加 EvalTask 扩展字段说明 | review |
 
 ---
 

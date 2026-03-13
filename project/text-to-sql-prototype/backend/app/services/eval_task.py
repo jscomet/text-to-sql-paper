@@ -382,6 +382,11 @@ class EvalTaskService:
         error_message: Optional[str] = None,
         execution_time_ms: Optional[float] = None,
         db_id: Optional[str] = None,
+        # Advanced inference fields
+        candidate_sqls: Optional[List[Dict[str, Any]]] = None,
+        iteration_count: Optional[int] = None,
+        correction_history: Optional[List[Dict[str, Any]]] = None,
+        confidence_score: Optional[float] = None,
     ) -> EvalResult:
         """Create an evaluation result record.
 
@@ -397,10 +402,18 @@ class EvalTaskService:
             error_message: Error message if failed.
             execution_time_ms: Execution time in milliseconds.
             db_id: Database ID.
+            candidate_sqls: List of candidate SQLs for pass_at_k mode.
+            iteration_count: Number of iterations for check_correct mode.
+            correction_history: Correction history for check_correct mode.
+            confidence_score: Confidence score for the prediction.
 
         Returns:
             Created EvalResult object.
         """
+        # Serialize advanced inference fields to JSON if provided
+        candidate_sqls_json = json.dumps(candidate_sqls) if candidate_sqls is not None else None
+        correction_history_json = json.dumps(correction_history) if correction_history is not None else None
+
         result = EvalResult(
             task_id=task_id,
             question_id=question_id,
@@ -412,6 +425,11 @@ class EvalTaskService:
             error_type=error_type,
             error_message=error_message,
             execution_time_ms=execution_time_ms,
+            # Advanced inference fields
+            candidate_sqls=candidate_sqls_json,
+            iteration_count=iteration_count,
+            correction_history=correction_history_json,
+            confidence_score=confidence_score,
         )
 
         db.add(result)

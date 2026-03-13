@@ -9,12 +9,31 @@ from app.services.nl2sql import (
     SQLExtractionError,
     extract_sql_from_response,
     generate_sql,
+    generate_sql_pass_at_k,
+    generate_sql_with_check_correct,
     generate_sql_with_retry,
     get_sql_dialect,
     validate_sql_syntax,
 )
+from app.services.pass_at_k import (
+    CandidateSQL,
+    PassAtKEvaluator,
+    PassAtKMetrics,
+    PassAtKResult,
+)
 from app.services.query_history import QueryHistoryService
 from app.services.schema import SchemaService
+from app.services.sql_checker import (
+    ErrorType,
+    ExecutionCheckResult,
+    SQLChecker,
+    SyntaxCheckResult,
+)
+from app.services.sql_corrector import (
+    CorrectionAttempt,
+    CorrectionResult,
+    SQLCorrector,
+)
 from app.services.sql_executor import SQLExecutorService
 
 __all__ = [
@@ -26,6 +45,8 @@ __all__ = [
     "SchemaService",
     "generate_sql",
     "generate_sql_with_retry",
+    "generate_sql_pass_at_k",
+    "generate_sql_with_check_correct",
     "extract_sql_from_response",
     "validate_sql_syntax",
     "get_sql_dialect",
@@ -38,4 +59,16 @@ __all__ = [
     "MajorityVoter",
     "determine_error_type",
     "EvalTaskService",
+    # Advanced Inference
+    "SQLChecker",
+    "SyntaxCheckResult",
+    "ExecutionCheckResult",
+    "ErrorType",
+    "SQLCorrector",
+    "CorrectionResult",
+    "CorrectionAttempt",
+    "PassAtKEvaluator",
+    "PassAtKResult",
+    "PassAtKMetrics",
+    "CandidateSQL",
 ]
