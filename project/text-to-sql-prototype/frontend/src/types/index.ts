@@ -326,25 +326,29 @@ export interface EvalStats {
 }
 
 // API Key 类型
+export type FormatType = 'openai' | 'anthropic' | 'vllm'
 export type KeyType = 'openai' | 'alibaba' | 'anthropic' | 'azure_openai' | 'local'
 
 export interface ApiKey {
   id: number
-  name: string
-  key_type: KeyType
+  provider: string
+  base_url?: string
   model?: string
+  format_type: FormatType
+  description?: string
   is_default: boolean
   created_at: string
   last_used_at?: string
 }
 
 export interface CreateApiKeyRequest {
-  name: string
-  key_type: KeyType
-  api_key: string
-  model?: string
-  is_default?: boolean
+  provider: string
+  key: string
   base_url?: string
+  model?: string
+  format_type?: FormatType
+  description?: string
+  is_default?: boolean
 }
 
 // 系统配置类型

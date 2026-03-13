@@ -5,7 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import * as authApi from '@/api/auth'
 import * as apiKeysApi from '@/api/apiKeys'
-import type { ApiKey, KeyType } from '@/types'
+import type { ApiKey, FormatType } from '@/types'
 
 const userStore = useUserStore()
 
@@ -133,19 +133,19 @@ const apiKeys = ref<ApiKey[]>([])
 // 添加 API Key 对话框
 const apiKeyDialogVisible = ref(false)
 const apiKeyForm = reactive({
-  name: '',
-  key_type: 'openai' as KeyType,
-  api_key: '',
+  provider: '',
+  key: '',
+  base_url: '',
   model: '',
+  format_type: 'openai' as FormatType,
+  description: '',
   is_default: false,
 })
 
-const keyTypeOptions = [
+const formatTypeOptions = [
   { label: 'OpenAI', value: 'openai' },
-  { label: '阿里云', value: 'alibaba' },
   { label: 'Anthropic', value: 'anthropic' },
-  { label: 'Azure OpenAI', value: 'azure_openai' },
-  { label: '本地模型', value: 'local' },
+  { label: 'vLLM', value: 'vllm' },
 ]
 
 // 获取 API Key 列表
@@ -164,27 +164,31 @@ const fetchApiKeys = async () => {
 
 // 打开添加对话框
 const openAddApiKeyDialog = () => {
-  apiKeyForm.name = ''
-  apiKeyForm.key_type = 'openai'
-  apiKeyForm.api_key = ''
+  apiKeyForm.provider = ''
+  apiKeyForm.key = ''
+  apiKeyForm.base_url = ''
   apiKeyForm.model = ''
+  apiKeyForm.format_type = 'openai'
+  apiKeyForm.description = ''
   apiKeyForm.is_default = false
   apiKeyDialogVisible.value = true
 }
 
 // 添加 API Key
 const handleAddApiKey = async () => {
-  if (!apiKeyForm.name || !apiKeyForm.api_key) {
+  if (!apiKeyForm.provider || !apiKeyForm.key) {
     ElMessage.warning('请填写完整信息')
     return
   }
 
   try {
     await apiKeysApi.createApiKey({
-      name: apiKeyForm.name,
-      key_type: apiKeyForm.key_type,
-      api_key: apiKeyForm.api_key,
+      provider: apiKeyForm.provider,
+      key: apiKeyForm.key,
+      base_url: apiKeyForm.base_url || undefined,
       model: apiKeyForm.model || undefined,
+      format_type: apiKeyForm.format_type,
+      description: apiKeyForm.description || undefined,
       is_default: apiKeyForm.is_default,
     })
     ElMessage.success('API Key 添加成功')
@@ -227,26 +231,22 @@ const handleSetDefault = async (id: number) => {
   }
 }
 
-// 获取 Key Type 标签
-const getKeyTypeLabel = (type: KeyType) => {
+// 获取 Format Type 标签
+const getFormatTypeLabel = (type: FormatType) => {
   const map: Record<string, string> = {
     openai: 'OpenAI',
-    alibaba: '阿里云',
     anthropic: 'Anthropic',
-    azure_openai: 'Azure',
-    local: '本地',
+    vllm: 'vLLM',
   }
   return map[type] || type
 }
 
-// 获取 Key Type 标签样式
-const getKeyTypeTag = (type: KeyType) => {
+// 获取 Format Type 标签样式
+const getFormatTypeTag = (type: FormatType) => {
   const map: Record<string, string> = {
     openai: '',
-    alibaba: 'success',
     anthropic: 'warning',
-    azure_openai: 'info',
-    local: 'info',
+    vllm: 'success',
   }
   return map[type] || ''
 }
@@ -343,11 +343,11 @@ onMounted(() => {
           </div>
 
           <el-table :data="apiKeys" v-loading="loading.apiKeys" style="width: 100%">
-            <el-table-column prop="name" label="名称" min-width="120" />
-            <el-table-column prop="key_type" label="类型" width="120">
+            <el-table-column prop="provider" label="提供商" min-width="120" />
+            <el-table-column prop="format_type" label="格式类型" width="120">
               <template #default="{ row }">
-                <el-tag :type="getKeyTypeTag(row.key_type)">
-                  {{ getKeyTypeLabel(row.key_type) }}
+                <el-tag :type="getFormatTypeTag(row.format_type)">
+                  {{ getFormatTypeLabel(row.format_type) }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -426,29 +426,35 @@ onMounted(() => {
     <!-- 添加 API Key 对话框 -->
     <el-dialog v-model="apiKeyDialogVisible" title="添加 API Key" width="500px">
       <el-form :model="apiKeyForm" label-width="100px">
-        <el-form-item label="名称" required>
-          <el-input v-model="apiKeyForm.name" placeholder="例如：OpenAI GPT-4" />
+        <el-form-item label="提供商" required>
+          <el-input v-model="apiKeyForm.provider" placeholder="例如：OpenAI, DeepSeek, Qwen" />
         </el-form-item>
-        <el-form-item label="类型" required>
-          <el-select v-model="apiKeyForm.key_type" style="width: 100%">
+        <el-form-item label="API Key" required>
+          <el-input
+            v-model="apiKeyForm.key"
+            type="password"
+            show-password
+            placeholder="输入您的 API Key"
+          />
+        </el-form-item>
+        <el-form-item label="格式类型" required>
+          <el-select v-model="apiKeyForm.format_type" style="width: 100%">
             <el-option
-              v-for="opt in keyTypeOptions"
+              v-for="opt in formatTypeOptions"
               :key="opt.value"
               :label="opt.label"
               :value="opt.value"
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="API Key" required>
-          <el-input
-            v-model="apiKeyForm.api_key"
-            type="password"
-            show-password
-            placeholder="输入您的 API Key"
-          />
-        </el-form-item>
         <el-form-item label="模型">
-          <el-input v-model="apiKeyForm.model" placeholder="例如：gpt-4（可选）" />
+          <el-input v-model="apiKeyForm.model" placeholder="例如：gpt-4, qwen-plus（可选）" />
+        </el-form-item>
+        <el-form-item label="Base URL">
+          <el-input v-model="apiKeyForm.base_url" placeholder="自定义 API 地址（可选）" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="apiKeyForm.description" placeholder="描述信息（可选）" />
         </el-form-item>
         <el-form-item label="设为默认">
           <el-switch v-model="apiKeyForm.is_default" />
