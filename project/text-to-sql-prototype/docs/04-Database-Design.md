@@ -108,9 +108,13 @@ erDiagram
     api_keys {
         int id PK
         int user_id FK
-        string key_type
+        string provider
         string key_encrypted
+        string base_url
+        string model
+        string format_type
         string description
+        boolean is_default
         datetime created_at
         datetime last_used_at
     }
@@ -305,8 +309,11 @@ erDiagram
 |--------|------|------|--------|------|
 | id | INTEGER | PRIMARY KEY, AUTO_INCREMENT | - | 密钥ID |
 | user_id | INTEGER | FOREIGN KEY, NOT NULL | - | 所属用户ID |
-| key_type | VARCHAR(50) | NOT NULL | - | 密钥类型：openai/alibaba/anthropic等 |
+| provider | VARCHAR(50) | NOT NULL | - | 提供商名称：deepseek/openai/anthropic等 |
 | key_encrypted | TEXT | NOT NULL | - | 加密后的API密钥 |
+| base_url | VARCHAR(500) | - | NULL | 自定义API基础URL |
+| model | VARCHAR(100) | - | NULL | 默认模型名称 |
+| format_type | VARCHAR(20) | NOT NULL | 'openai' | API格式类型：openai/anthropic/vllm |
 | description | VARCHAR(200) | - | NULL | 描述说明 |
 | is_default | BOOLEAN | NOT NULL | FALSE | 是否为默认密钥 |
 | created_at | DATETIME | NOT NULL | CURRENT_TIMESTAMP | 创建时间 |
@@ -316,8 +323,15 @@ erDiagram
 - PRIMARY KEY: `id`
 - FOREIGN KEY: `user_id` REFERENCES `users(id)` ON DELETE CASCADE
 - INDEX: `user_id` (用于查询用户的所有密钥)
-- INDEX: `key_type` (用于按类型筛选密钥)
+- INDEX: `provider` (用于按提供商筛选密钥)
 - INDEX: `is_default` (用于查询默认密钥)
+- INDEX: `format_type` (用于按格式类型筛选)
+
+**设计说明**：
+- `provider`: 显示名称，如 "deepseek", "openai", "my-custom-llm"
+- `format_type`: 决定使用哪个Client类实现，支持 openai/anthropic/vllm 三种格式
+- `base_url`: 支持自定义API端点，如本地vLLM服务
+- `model`: 可选的默认模型名称，如 "deepseek-chat", "gpt-4"
 
 ---
 
@@ -415,15 +429,25 @@ erDiagram
 | timeout | 执行超时 |
 | generation | 生成失败（模型未返回有效SQL） |
 
-### 4.10 API密钥类型 (api_keys.key_type)
+### 4.10 API密钥提供商 (api_keys.provider)
 
 | 取值 | 说明 |
 |------|------|
 | openai | OpenAI API |
-| alibaba | 阿里云DashScope |
+| deepseek | DeepSeek API |
+| dashscope | 阿里云DashScope |
 | anthropic | Anthropic Claude |
 | azure_openai | Azure OpenAI |
-| local | 本地模型（无需密钥） |
+| custom | 自定义提供商 |
+| local | 本地模型（如vLLM） |
+
+### 4.11 API格式类型 (api_keys.format_type)
+
+| 取值 | 说明 | 适用场景 |
+|------|------|----------|
+| openai | OpenAI兼容格式 | OpenAI、DeepSeek、DashScope、vLLM等 |
+| anthropic | Anthropic Claude格式 | Claude API原生格式 |
+| vllm | vLLM格式 | 本地vLLM部署 |
 
 ---
 
@@ -617,8 +641,11 @@ CREATE INDEX idx_eval_results_error ON eval_results(error_type);
 CREATE TABLE api_keys (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
-    key_type VARCHAR(50) NOT NULL,
+    provider VARCHAR(50) NOT NULL,
     key_encrypted TEXT NOT NULL,
+    base_url VARCHAR(500),
+    model VARCHAR(100),
+    format_type VARCHAR(20) NOT NULL DEFAULT 'openai',
     description VARCHAR(200),
     is_default BOOLEAN NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -626,7 +653,9 @@ CREATE TABLE api_keys (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
-CREATE INDEX idx_api_keys_type ON api_keys(key_type);
+CREATE INDEX idx_api_keys_provider ON api_keys(provider);
+CREATE INDEX idx_api_keys_is_default ON api_keys(is_default);
+CREATE INDEX idx_api_keys_format_type ON api_keys(format_type);
 
 -- 系统配置表
 CREATE TABLE system_config (
@@ -670,3 +699,4 @@ CREATE TABLE system_config (
 | 版本 | 日期 | 修改内容 | 作者 |
 |------|------|---------|------|
 | 1.0 | 2026-03-12 | 初始版本 | Database Architect |
+| 1.1 | 2026-03-13 | LLM配置重构：api_keys表key_type重命名为provider，新增base_url/model/format_type字段 | Claude Code |

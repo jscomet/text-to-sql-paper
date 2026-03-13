@@ -15,7 +15,7 @@
 | 任务队列 | Celery + Redis | ^5.3.x | 成熟的异步任务处理、定时任务支持 |
 | 缓存 | Redis | ^7.x | 高性能、支持多种数据结构 |
 | 检索引擎 | Whoosh / BM25 | ^2.7.x | 轻量级全文检索，支持表内容索引 |
-| LLM服务 | vLLM / OpenAI API | - | 支持本地部署和云端API |
+| LLM服务 | OpenAI / Anthropic / vLLM | - | 通用格式支持，可接入任意提供商 |
 | 数据库 | PostgreSQL / SQLite | 15+ / 3.x | 开发用SQLite，生产用PostgreSQL |
 
 ### 1.2 选型理由详解
@@ -158,8 +158,8 @@ api/v1/ (API路由层)
             └── 依赖: services/, schemas/
 
 services/ (业务逻辑层)
-    ├── llm_service.py
-    │       └── 依赖: LLM API, Prompt模板
+    ├── llm.py
+    │       └── 依赖: LLM API, Prompt模板 (支持openai/anthropic/vllm格式)
     ├── sql_generator.py
     │       └── 依赖: Schema管理, LLM服务
     ├── evaluator.py
@@ -481,8 +481,8 @@ backend/
 │   │
 │   ├── services/                    # 业务逻辑层
 │   │   ├── __init__.py
-│   │   ├── llm_service.py           # LLM服务
-│   │   ├── sql_generator.py         # SQL生成器
+│   │   ├── llm.py                   # LLM服务（支持openai/anthropic/vllm格式）
+│   │   ├── nl2sql.py                # SQL生成器
 │   │   ├── evaluator.py             # 评测器
 │   │   ├── db_connector.py          # 数据库连接器
 │   │   ├── schema_manager.py        # Schema管理器
@@ -521,116 +521,167 @@ backend/
 
 ### 4.3 核心服务设计
 
-#### LLM服务 (llm_service.py)
+#### LLM服务 (llm.py)
+
+**架构设计原则**：
+- `provider`: 显示名称（如 "deepseek", "openai", "my-custom-llm"），用于标识和日志
+- `format_type`: 决定使用哪个Client类实现（openai/anthropic/vllm）
+- 任何LLM提供商都可以通过这三种通用格式接入
 
 ```python
 from abc import ABC, abstractmethod
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator, Optional, Dict, Any
 import httpx
-from app.core.config import settings
+from openai import AsyncOpenAI
 
 
-class BaseLLMService(ABC):
-    """LLM服务基类"""
+class BaseLLMClient(ABC):
+    """LLM客户端基类"""
+
+    def __init__(self, api_key: str, base_url: Optional[str] = None):
+        self.api_key = api_key
+        self.base_url = base_url
 
     @abstractmethod
-    async def generate(self, prompt: str, **kwargs) -> str:
+    async def generate(
+        self,
+        prompt: str,
+        model_config: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """生成文本"""
         pass
 
     @abstractmethod
-    async def stream_generate(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
+    async def generate_stream(
+        self,
+        prompt: str,
+        model_config: Optional[Dict[str, Any]] = None,
+    ) -> AsyncGenerator[str, None]:
         """流式生成"""
         pass
 
 
-class OpenAILLMService(BaseLLMService):
-    """OpenAI API服务"""
+class OpenAIClient(BaseLLMClient):
+    """OpenAI兼容格式客户端
 
-    def __init__(self):
-        self.api_key = settings.OPENAI_API_KEY
-        self.base_url = settings.OPENAI_BASE_URL
-        self.model = settings.OPENAI_MODEL
+    支持：OpenAI、DeepSeek、DashScope、vLLM等任何OpenAI兼容API
+    """
 
-    async def generate(self, prompt: str, **kwargs) -> str:
+    def __init__(
+        self,
+        api_key: str,
+        base_url: Optional[str] = None,
+        default_model: str = "gpt-3.5-turbo",
+    ):
+        super().__init__(api_key, base_url)
+        self.default_model = default_model
+        client_kwargs = {"api_key": api_key}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        self.client = AsyncOpenAI(**client_kwargs)
+
+    async def generate(self, prompt: str, model_config: Optional[Dict] = None) -> str:
+        config = model_config or {}
+        response = await self.client.chat.completions.create(
+            model=config.get("model", self.default_model),
+            messages=[{"role": "user", "content": prompt}],
+            temperature=config.get("temperature", 0.7),
+            max_tokens=config.get("max_tokens", 2000),
+        )
+        return response.choices[0].message.content
+
+
+class AnthropicClient(BaseLLMClient):
+    """Anthropic Claude格式客户端"""
+
+    DEFAULT_BASE_URL = "https://api.anthropic.com"
+    DEFAULT_MODEL = "claude-3-sonnet-20240229"
+
+    async def generate(self, prompt: str, model_config: Optional[Dict] = None) -> str:
+        config = model_config or {}
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.base_url}/v1/chat/completions",
-                headers={"Authorization": f"Bearer {self.api_key}"},
+                f"{self.base_url}/v1/messages",
+                headers={
+                    "x-api-key": self.api_key,
+                    "anthropic-version": "2023-06-01",
+                },
                 json={
-                    "model": self.model,
+                    "model": config.get("model", self.DEFAULT_MODEL),
                     "messages": [{"role": "user", "content": prompt}],
-                    **kwargs
-                }
+                    "temperature": config.get("temperature", 0.7),
+                    "max_tokens": config.get("max_tokens", 2000),
+                },
             )
-            result = response.json()
-            return result["choices"][0]["message"]["content"]
+            data = response.json()
+            return data["content"][0]["text"]
 
 
-class VLLMService(BaseLLMService):
-    """本地vLLM服务"""
-
-    def __init__(self):
-        self.base_url = settings.VLLM_BASE_URL
-        self.model = settings.VLLM_MODEL
-
-    async def generate(self, prompt: str, **kwargs) -> str:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.base_url}/v1/completions",
-                json={
-                    "model": self.model,
-                    "prompt": prompt,
-                    "max_tokens": kwargs.get("max_tokens", 512),
-                    "temperature": kwargs.get("temperature", 0.1),
-                }
-            )
-            result = response.json()
-            return result["choices"][0]["text"]
+class VLLMClient(OpenAIClient):
+    """vLLM客户端（继承OpenAIClient，使用兼容格式）"""
+    pass
 
 
-class AlibabaLLMService(BaseLLMService):
-    """阿里云通义千问服务"""
+# LLM客户端工厂
+def get_llm_client(
+    provider: str,
+    api_key: str,
+    format_type: str = "openai",
+    base_url: Optional[str] = None,
+    model: Optional[str] = None,
+) -> BaseLLMClient:
+    """根据format_type获取对应的LLM客户端
 
-    def __init__(self):
-        self.api_key = settings.DASHSCOPE_API_KEY
-        self.model = settings.DASHSCOPE_MODEL or "qwen3.5-plus"
-        self.base_url = settings.DASHSCOPE_BASE_URL or "https://dashscope.aliyuncs.com/api/v1"
+    Args:
+        provider: 提供商名称（如 'deepseek', 'openai'）- 用于显示和日志
+        api_key: API密钥
+        format_type: API格式类型 - 决定使用哪个Client类
+        base_url: 自定义API基础URL
+        model: 默认模型名称
 
-    async def generate(self, prompt: str, **kwargs) -> str:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.base_url}/services/aigc/text-generation/generation",
-                headers={"Authorization": f"Bearer {self.api_key}"},
-                json={
-                    "model": self.model,
-                    "input": {"prompt": prompt},
-                    "parameters": {
-                        "max_tokens": kwargs.get("max_tokens", 512),
-                        "temperature": kwargs.get("temperature", 0.1),
-                    }
-                }
-            )
-            result = response.json()
-            return result["output"]["text"]
+    Returns:
+        BaseLLMClient: 对应的LLM客户端实例
+    """
+    if not api_key:
+        raise ValueError(f"API key not provided for provider: {provider}")
 
+    format_type = format_type.lower()
 
-# LLM服务工厂
-def get_llm_service(provider: Optional[str] = None) -> BaseLLMService:
-    provider = provider or settings.LLM_PROVIDER
-    services = {
-        "openai": OpenAILLMService,
-        "vllm": VLLMService,
-        "alibaba": AlibabaLLMService,
-    }
-    return services[provider]()
+    if format_type == "openai":
+        return OpenAIClient(api_key, base_url, model or "gpt-3.5-turbo")
+    elif format_type == "anthropic":
+        return AnthropicClient(api_key, base_url, model or "claude-3-sonnet-20240229")
+    elif format_type == "vllm":
+        return VLLMClient(api_key, base_url, model or "meta-llama/Llama-2-7b-chat-hf")
+    else:
+        raise ValueError(f"Unsupported format_type: {format_type}")
+```
+
+**配置示例**：
+
+```python
+# 环境变量配置（.env）
+LLM_PROVIDER=deepseek                    # 显示名称
+LLM_BASE_URL=https://api.deepseek.com/v1 # API端点
+LLM_API_KEY=sk-xxxx                      # API密钥
+LLM_MODEL=deepseek-chat                  # 默认模型
+LLM_FORMAT=openai                        # 格式类型：openai/anthropic/vllm
+
+# 数据库存储（api_keys表）
+{
+    "provider": "my-custom-llm",         # 任意名称
+    "base_url": "https://api.custom.com/v1",
+    "model": "custom-model",
+    "format_type": "openai",             # 决定使用哪个Client类
+    "key_encrypted": "xxx"
+}
 ```
 
 #### SQL生成器 (sql_generator.py)
 
 ```python
 from typing import List, Dict, Any
-from app.services.llm_service import BaseLLMService, get_llm_service
+from app.services.llm import BaseLLMClient, get_llm_client
 from app.utils.prompts import PromptTemplate
 from app.services.schema_manager import SchemaManager
 
@@ -638,8 +689,8 @@ from app.services.schema_manager import SchemaManager
 class SQLGenerator:
     """Text-to-SQL生成器"""
 
-    def __init__(self, llm_service: BaseLLMService = None):
-        self.llm = llm_service or get_llm_service()
+    def __init__(self, llm_client: BaseLLMClient = None):
+        self.llm = llm_client or get_llm_client()
         self.schema_manager = SchemaManager()
         self.prompt_template = PromptTemplate()
 
@@ -1478,7 +1529,7 @@ esac
 - **前端**: Vue 3 + Vite + Pinia + Element Plus
 - **后端**: FastAPI + SQLAlchemy + Celery
 - **检索**: Whoosh (BM25索引)
-- **LLM**: 支持 OpenAI / vLLM / 阿里云通义千问
+- **LLM**: 支持 OpenAI / Anthropic / vLLM / DeepSeek / DashScope 等（通过 openai/anthropic/vllm 三种通用格式接入）
 
 ### 满足PRD关键需求
 
@@ -1497,3 +1548,12 @@ esac
 - **高性能**: 多级缓存、连接池、异步处理
 - **安全性**: 多层防护（注入、权限、脱敏）
 - **可维护**: 模块化设计、完整日志、配置化管理
+
+---
+
+## 12. 版本历史
+
+| 版本 | 日期 | 修改内容 | 作者 |
+|------|------|---------|------|
+| 1.0 | 2026-03-12 | 初始版本 | System Architect |
+| 1.1 | 2026-03-13 | LLM配置重构：统一使用format_type选择Client实现，支持openai/anthropic/vllm三种格式 | Claude Code |

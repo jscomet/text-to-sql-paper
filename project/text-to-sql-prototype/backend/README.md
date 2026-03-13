@@ -7,8 +7,9 @@ FastAPI-based backend for Text-to-SQL conversion prototype.
 - FastAPI web framework
 - SQLAlchemy ORM with async support
 - JWT authentication
-- LLM API integration (OpenAI, DashScope)
+- LLM API integration (OpenAI, Anthropic, vLLM, DeepSeek, DashScope)
 - Alembic database migrations
+- Universal LLM client (3 format types: openai/anthropic/vllm)
 
 ## Quick Start
 
@@ -87,7 +88,15 @@ pytest
 | `DATABASE_URL` | Database connection URL | `sqlite:///./app.db` |
 | `SECRET_KEY` | JWT secret key | `your-secret-key-change-in-production` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT token expiry | `60` |
+| **Generic LLM Config** ||
+| `LLM_PROVIDER` | Provider name (display only) | `openai` |
+| `LLM_BASE_URL` | API base URL | `None` |
+| `LLM_API_KEY` | API key | `None` |
+| `LLM_MODEL` | Default model | `gpt-3.5-turbo` |
+| `LLM_FORMAT` | API format: openai/anthropic/vllm | `openai` |
+| **Legacy Provider Config (optional)** ||
 | `OPENAI_API_KEY` | OpenAI API key | `None` |
 | `DASHSCOPE_API_KEY` | DashScope API key | `None` |
+| `DEEPSEEK_API_KEY` | DeepSeek API key | `None` |
 | `ENVIRONMENT` | Environment (development/production) | `development` |
 | `LOG_LEVEL` | Logging level | `INFO` |
