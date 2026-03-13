@@ -127,52 +127,27 @@ await mcp__playwright__browser_take_screenshot({ filename: "result.png" });
 
 #### 3. 核心测试场景
 
-| 场景 | 测试内容 | 规范文档 |
-|------|----------|----------|
-| **登录流程** | 验证用户名/密码登录、Token 存储、登录状态保持 | `specs/01-Auth-Test-Spec.md` |
+| 场景               | 测试内容                                        | 规范文档                             |
+| ------------------ | ----------------------------------------------- | ------------------------------------ |
+| **登录流程** | 验证用户名/密码登录、Token 存储、登录状态保持   | `specs/01-Auth-Test-Spec.md`       |
 | **连接管理** | 创建数据库连接、测试连接、刷新 Schema、删除连接 | `specs/02-Connection-Test-Spec.md` |
-| **SQL 查询** | 自然语言转 SQL、执行查询、结果展示、导出功能 | `specs/03-Query-Test-Spec.md` |
-| **历史记录** | 查询历史查看、搜索、收藏、删除 | `specs/04-History-Test-Spec.md` |
-| **评测功能** | SQL 评测任务执行、评分、排行榜 | `specs/05-Evaluation-Test-Spec.md` |
-| **个人设置** | API 密钥配置、个人信息修改 | `specs/06-Settings-Test-Spec.md` |
-| **回归测试** | 全量回归测试套件 | `specs/07-Regression-Test-Spec.md` |
+| **SQL 查询** | 自然语言转 SQL、执行查询、结果展示、导出功能    | `specs/03-Query-Test-Spec.md`      |
+| **历史记录** | 查询历史查看、搜索、收藏、删除                  | `specs/04-History-Test-Spec.md`    |
+| **评测功能** | SQL 评测任务执行、评分、排行榜                  | `specs/05-Evaluation-Test-Spec.md` |
+| **个人设置** | API 密钥配置、个人信息修改                      | `specs/06-Settings-Test-Spec.md`   |
+| **回归测试** | 全量回归测试套件                                | `specs/07-Regression-Test-Spec.md` |
 
 #### 4. 测试数据
 
 默认测试账号：
+
 - 用户名: `admin`
 - 密码: `admin123`
 
 测试数据库连接：
+
 - 类型: SQLite
 - 文件: `backend/app.db`
-
-#### 5. 调试技巧
-
-```bash
-# 带浏览器界面的测试
-npx playwright test --headed
-
-# 慢速执行（便于观察）
-npx playwright test --slow-mo 1000
-
-# 特定项目测试
-npx playwright test --project=chromium
-
-# 代码生成（录制操作）
-npx playwright codegen http://localhost:5173
-```
-
-### CI/CD 集成
-
-```yaml
-# 示例 GitHub Actions 配置
-- name: Run E2E Tests
-  run: |
-    ./scripts/start.sh all
-    npx playwright test
-    ./scripts/stop.sh all
-```
 
 ## 开发工作流
 
@@ -228,12 +203,6 @@ python -m venv venv
 source venv/Scripts/activate  # Windows
 pip install -r requirements.txt
 ```
-
-### E2E 测试失败
-
-1. 确保服务已启动：`./scripts/status.sh`
-2. 检查浏览器安装：`npx playwright install`
-3. 查看测试报告：`npx playwright show-report`
 
 ## 相关链接
 
