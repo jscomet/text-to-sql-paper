@@ -17,7 +17,7 @@ export type ApiKeyType = KeyType
  * 获取API密钥列表
  */
 export const getApiKeys = (): Promise<ApiKey[]> => {
-  return request.get('/keys') as Promise<ApiKey[]>
+  return request.get('/keys').then((res: { list: ApiKey[] }) => res.list) as Promise<ApiKey[]>
 }
 
 /**

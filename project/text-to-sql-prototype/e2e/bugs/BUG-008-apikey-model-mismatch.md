@@ -176,6 +176,44 @@ curl -X POST http://localhost:8000/api/v1/keys \
 |------|--------|----------|
 | 2026-03-13 | e2e-lead | 创建 Bug 报告 |
 | 2026-03-13 | e2e-lead | 修复前端类型定义和表单字段 |
+| 2026-03-13 | e2e-lead | E2E 验证通过 |
+
+## 验证结果
+
+### E2E 验证步骤
+
+1. 访问设置页面 `/settings` ✅
+2. 切换到 "API Key" 标签 ✅
+3. 点击"添加 API Key" ✅
+4. 检查表单字段是否正确显示：
+   - 提供商 (provider) ✅
+   - API Key (key) ✅
+   - 格式类型 (format_type) - 下拉选择 ✅
+   - 模型 (model) ✅
+   - Base URL (base_url) ✅
+   - 描述 (description) ✅
+   - 设为默认 (is_default) ✅
+5. 检查表格列是否正确显示：
+   - 提供商 ✅
+   - 格式类型 ✅
+   - 模型 ✅
+   - 默认 ✅
+   - 创建时间 ✅
+   - 操作 ✅
+
+### 验证截图
+
+| 截图 | 说明 |
+|------|------|
+| BUG-008-fixed-apikey-table.png | 表格列显示正确 |
+| BUG-008-fixed-apikey-form.png | 表单字段显示正确 |
+
+### 验证结论
+
+- ✅ 前端界面已正确适配后端 API Key 数据模型
+- ✅ 所有字段名称与后端保持一致
+- ✅ 新增字段 (format_type, base_url, description) 已正确添加
+- 🟡 待配置有效 API Key 后验证完整创建流程
 
 ## 修复详情
 
