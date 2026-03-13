@@ -53,13 +53,13 @@ fi
 
 log_info "Starting backend server..."
 
-# Activate and start
+# Activate and start (without reload to ensure fresh code)
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
     source venv/Scripts/activate
-    uvicorn app.main:app --host 0.0.0.0 --port $PORT --reload > backend.log 2>&1 &
+    uvicorn app.main:app --host 0.0.0.0 --port $PORT > backend.log 2>&1 &
 else
     source venv/bin/activate
-    nohup uvicorn app.main:app --host 0.0.0.0 --port $PORT --reload > backend.log 2>&1 &
+    nohup uvicorn app.main:app --host 0.0.0.0 --port $PORT > backend.log 2>&1 &
 fi
 
 pid=$!
