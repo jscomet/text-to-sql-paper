@@ -2,7 +2,7 @@
 from app.services.connection import ConnectionService
 from app.services.eval_task import EvalTaskService
 from app.services.evaluator import MajorityVoter, SQLEvaluator, determine_error_type
-from app.services.llm import DashScopeClient, OpenAIClient, get_llm_client
+from app.services.llm import AnthropicClient, OpenAIClient, VLLMClient, get_llm_client
 from app.services.nl2sql import (
     NL2SQLError,
     SQLGenerationError,
@@ -19,7 +19,8 @@ from app.services.sql_executor import SQLExecutorService
 
 __all__ = [
     "OpenAIClient",
-    "DashScopeClient",
+    "AnthropicClient",
+    "VLLMClient",
     "get_llm_client",
     "ConnectionService",
     "SchemaService",

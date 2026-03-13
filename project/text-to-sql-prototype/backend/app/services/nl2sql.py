@@ -30,16 +30,20 @@ async def generate_sql(
     model_config: Optional[dict] = None,
     dialect: str = "MySQL",
     api_key: Optional[str] = None,
+    format_type: str = "openai",
+    base_url: Optional[str] = None,
 ) -> str:
     """Generate SQL from natural language question.
 
     Args:
         question: Natural language question.
         schema_text: Database schema in text format.
-        provider: LLM provider ('openai' or 'dashscope').
+        provider: LLM provider name for display/logging (e.g., 'openai', 'deepseek').
         model_config: Optional model configuration.
         dialect: SQL dialect (MySQL, PostgreSQL, SQLite).
         api_key: Optional API key for the provider.
+        format_type: API format type (openai, anthropic, vllm).
+        base_url: Optional custom base URL for the API.
 
     Returns:
         Generated SQL query.
@@ -55,8 +59,14 @@ async def generate_sql(
             dialect=dialect,
         )
 
-        # Get LLM client
-        client = get_llm_client(provider, api_key=api_key)
+        # Get LLM client based on format_type
+        client = get_llm_client(
+            provider=provider,
+            api_key=api_key,
+            format_type=format_type,
+            base_url=base_url,
+            model=model_config.get("model") if model_config else None,
+        )
 
         # Generate SQL
         logger.debug(f"Generating SQL for question: {question}")
@@ -179,6 +189,9 @@ async def generate_sql_with_retry(
     provider: str = "openai",
     model_config: Optional[dict] = None,
     dialect: str = "MySQL",
+    api_key: Optional[str] = None,
+    format_type: str = "openai",
+    base_url: Optional[str] = None,
     max_retries: int = 2,
 ) -> str:
     """Generate SQL with retry on validation failure.
@@ -186,9 +199,12 @@ async def generate_sql_with_retry(
     Args:
         question: Natural language question.
         schema_text: Database schema in text format.
-        provider: LLM provider.
+        provider: LLM provider name.
         model_config: Optional model configuration.
         dialect: SQL dialect.
+        api_key: Optional API key for the provider.
+        format_type: API format type (openai, anthropic, vllm).
+        base_url: Optional custom base URL.
         max_retries: Maximum number of retries.
 
     Returns:
@@ -207,6 +223,9 @@ async def generate_sql_with_retry(
                 provider=provider,
                 model_config=model_config,
                 dialect=dialect,
+                api_key=api_key,
+                format_type=format_type,
+                base_url=base_url,
             )
 
             # Validate syntax

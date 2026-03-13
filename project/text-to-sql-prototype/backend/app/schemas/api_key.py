@@ -1,15 +1,30 @@
 """API key schemas for request and response validation."""
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# Valid format types for LLM responses
+FormatType = Literal["openai", "anthropic", "vllm"]
 
 
 class APIKeyBase(BaseModel):
     """Base API key schema with common attributes."""
-    key_type: str = Field(..., min_length=1, max_length=50, description="Provider type (openai, dashscope, etc.)")
+    provider: str = Field(..., min_length=1, max_length=50, description="Provider name (deepseek, openai, etc.)")
+    base_url: Optional[str] = Field(None, max_length=500, description="Custom base URL for the API")
+    model: Optional[str] = Field(None, max_length=100, description="Model name (e.g., gpt-4, qwen-plus)")
+    format_type: FormatType = Field(default="openai", description="API format: openai, anthropic, or vllm")
     description: Optional[str] = Field(None, max_length=200, description="Optional description for the key")
     is_default: bool = Field(False, description="Whether this is the default key for the provider")
+
+    @field_validator("format_type")
+    @classmethod
+    def validate_format_type(cls, v: str) -> str:
+        """Validate format type."""
+        valid_types = ["openai", "anthropic", "vllm"]
+        if v not in valid_types:
+            raise ValueError(f"format_type must be one of: {', '.join(valid_types)}")
+        return v
 
 
 class APIKeyCreate(APIKeyBase):
@@ -19,6 +34,9 @@ class APIKeyCreate(APIKeyBase):
 
 class APIKeyUpdate(BaseModel):
     """Schema for updating an API key."""
+    base_url: Optional[str] = Field(None, max_length=500)
+    model: Optional[str] = Field(None, max_length=100)
+    format_type: Optional[FormatType] = None
     description: Optional[str] = Field(None, max_length=200)
     is_default: Optional[bool] = None
 
@@ -39,7 +57,10 @@ class APIKeyInDB(APIKeyBase):
 class APIKeyResponse(BaseModel):
     """Schema for API key response (without exposing the actual key)."""
     id: int
-    key_type: str
+    provider: str
+    base_url: Optional[str] = None
+    model: Optional[str] = None
+    format_type: str = "openai"
     description: Optional[str] = None
     is_default: bool
     created_at: datetime

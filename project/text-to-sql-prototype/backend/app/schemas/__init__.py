@@ -12,6 +12,7 @@ from app.schemas.api_key import (
     APIKeyListResponse,
     APIKeyResponse,
     APIKeyUpdate,
+    FormatType,
 )
 from app.schemas.connection import (
     ColumnSchema,
@@ -102,6 +103,7 @@ __all__ = [
     "APIKeyListResponse",
     "APIKeyDecryptRequest",
     "APIKeyDecryptResponse",
+    "FormatType",
     # Query schemas
     "QueryGenerateRequest",
     "QueryExecuteRequest",

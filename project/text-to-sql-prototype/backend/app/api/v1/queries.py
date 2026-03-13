@@ -8,7 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_active_user
-from app.api.v1.api_keys import get_user_api_key
+from app.api.v1.api_keys import get_user_api_key_config
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.logging import get_logger
 from app.models.db_connection import DBConnection
@@ -111,22 +112,23 @@ async def generate_sql_endpoint(
         tables = await schema_service.get_all_schemas(engine)
         schema_text = SchemaService.build_schema_text(tables)
 
-        # Get API key for provider (优先使用 dashscope，因为默认配置了阿里云)
-        provider = request.provider or "dashscope"
-        api_key = await get_user_api_key(
+        # Get API key configuration for provider
+        provider = request.provider or settings.llm_provider
+        api_key_config = await get_user_api_key_config(
             current_user.id, provider, db, prefer_default=True
         )
 
         # Fall back to environment variable if no user-specific key
-        if not api_key:
-            from app.core.config import settings
-            if provider == "dashscope":
-                api_key = settings.dashscope_api_key
-            elif provider == "openai":
-                api_key = settings.openai_api_key
+        if not api_key_config:
+            api_key_config = {
+                "api_key": settings.llm_api_key,
+                "base_url": settings.llm_base_url,
+                "model": settings.llm_model,
+                "format_type": settings.llm_format,
+            }
 
         # Check if API key is configured
-        if not api_key:
+        if not api_key_config or not api_key_config.get("api_key"):
             error_msg = f"未配置 {provider} API Key。请在系统设置中添加 API Key。"
             await history_service.update_query_result(
                 query_id=query_record.id,
@@ -147,21 +149,24 @@ async def generate_sql_endpoint(
         # Generate SQL
         dialect = get_sql_dialect(connection.db_type)
 
-        # 根据 provider 选择模型
-        if provider == "openai":
-            model = "gpt-3.5-turbo"
-        elif provider == "deepseek":
-            model = settings.deepseek_model
-        else:
-            model = "qwen3.5-plus"
+        # Get LLM client based on format_type
+        client = get_llm_client(
+            provider=provider,
+            api_key=api_key_config["api_key"],
+            format_type=api_key_config["format_type"],
+            base_url=api_key_config["base_url"],
+            model=api_key_config["model"],
+        )
 
         generated_sql = await generate_sql(
             question=request.question,
             schema_text=schema_text,
             provider=provider,
-            model_config={"model": model},
+            model_config={"model": api_key_config["model"]},
             dialect=dialect,
-            api_key=api_key,
+            api_key=api_key_config["api_key"],
+            format_type=api_key_config["format_type"],
+            base_url=api_key_config["base_url"],
         )
 
         # Format SQL
@@ -327,21 +332,23 @@ async def run_query_endpoint(
         tables = await schema_service.get_all_schemas(engine)
         schema_text = SchemaService.build_schema_text(tables)
 
-        # Get API key for provider (优先使用 dashscope，因为默认配置了阿里云)
-        provider = request.provider or "dashscope"
-        api_key = await get_user_api_key(
+        # Get API key configuration for provider
+        provider = request.provider or settings.llm_provider
+        api_key_config = await get_user_api_key_config(
             current_user.id, provider, db, prefer_default=True
         )
 
         # Fall back to environment variable if no user-specific key
-        if not api_key:
-            if provider == "dashscope":
-                api_key = settings.dashscope_api_key
-            elif provider == "openai":
-                api_key = settings.openai_api_key
+        if not api_key_config:
+            api_key_config = {
+                "api_key": settings.llm_api_key,
+                "base_url": settings.llm_base_url,
+                "model": settings.llm_model,
+                "format_type": settings.llm_format,
+            }
 
         # Check if API key is configured
-        if not api_key:
+        if not api_key_config or not api_key_config.get("api_key"):
             error_msg = f"未配置 {provider} API Key。请在系统设置中添加 API Key。"
             await history_service.update_query_result(
                 query_id=query_record.id,
@@ -359,21 +366,15 @@ async def run_query_endpoint(
         # Generate SQL
         dialect = get_sql_dialect(connection.db_type)
 
-        # 根据 provider 选择模型
-        if provider == "openai":
-            model = "gpt-3.5-turbo"
-        elif provider == "deepseek":
-            model = settings.deepseek_model
-        else:
-            model = "qwen3.5-plus"
-
         generated_sql = await generate_sql(
             question=request.question,
             schema_text=schema_text,
             provider=provider,
-            model_config={"model": model},
+            model_config={"model": api_key_config["model"]},
             dialect=dialect,
-            api_key=api_key,
+            api_key=api_key_config["api_key"],
+            format_type=api_key_config["format_type"],
+            base_url=api_key_config["base_url"],
         )
 
         formatted_sql = sqlparse.format(generated_sql, reindent=True, keyword_case="upper")
@@ -593,3 +594,4 @@ async def delete_query_history(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Query not found",
         )
+# DEEPSEEK_FIXED_20240313

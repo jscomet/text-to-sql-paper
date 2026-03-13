@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.core.security import decrypt_api_key, encrypt_api_key
 from app.models.api_key import APIKey
 from app.models.user import User
-from app.schemas.api_key import APIKeyCreate, APIKeyListResponse, APIKeyResponse
+from app.schemas.api_key import APIKeyCreate, APIKeyListResponse, APIKeyResponse, FormatType
 
 router = APIRouter(prefix="/keys", tags=["API Keys"])
 
@@ -39,7 +39,10 @@ async def list_api_keys(
     items = [
         APIKeyResponse(
             id=key.id,
-            key_type=key.key_type,
+            provider=key.provider,
+            base_url=key.base_url,
+            model=key.model,
+            format_type=key.format_type,
             description=key.description,
             is_default=key.is_default,
             created_at=key.created_at,
@@ -72,28 +75,22 @@ async def create_api_key(
     Raises:
         HTTPException: If the key type is invalid.
     """
-    # Validate key type
-    valid_types = ["openai", "dashscope"]
-    if key_data.key_type.lower() not in valid_types:
+    provider = key_data.provider.lower()
+
+    # Validate format_type
+    valid_formats = ["openai", "anthropic", "vllm"]
+    if key_data.format_type not in valid_formats:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid key type. Must be one of: {', '.join(valid_types)}"
+            detail=f"Invalid format_type. Must be one of: {', '.join(valid_formats)}"
         )
 
-    # If setting as default, unset other defaults for this type
+    # If setting as default, unset other defaults for this provider
     if key_data.is_default:
-        await db.execute(
-            select(APIKey)
-            .where(
-                APIKey.user_id == current_user.id,
-                APIKey.key_type == key_data.key_type.lower(),
-                APIKey.is_default == True
-            )
-        )
         result = await db.execute(
             select(APIKey).where(
                 APIKey.user_id == current_user.id,
-                APIKey.key_type == key_data.key_type.lower(),
+                APIKey.provider == provider,
                 APIKey.is_default == True
             )
         )
@@ -108,8 +105,11 @@ async def create_api_key(
     # Create new API key
     new_key = APIKey(
         user_id=current_user.id,
-        key_type=key_data.key_type.lower(),
+        provider=provider,
         key_encrypted=encrypted_key,
+        base_url=key_data.base_url,
+        model=key_data.model,
+        format_type=key_data.format_type,
         description=key_data.description,
         is_default=key_data.is_default,
     )
@@ -120,7 +120,10 @@ async def create_api_key(
 
     return APIKeyResponse(
         id=new_key.id,
-        key_type=new_key.key_type,
+        provider=new_key.provider,
+        base_url=new_key.base_url,
+        model=new_key.model,
+        format_type=new_key.format_type,
         description=new_key.description,
         is_default=new_key.is_default,
         created_at=new_key.created_at,
@@ -164,7 +167,7 @@ async def delete_api_key(
 
 async def get_user_api_key(
     user_id: int,
-    key_type: str,
+    provider: str,
     db: AsyncSession,
     prefer_default: bool = True,
 ) -> str | None:
@@ -174,21 +177,21 @@ async def get_user_api_key(
 
     Args:
         user_id: The user ID.
-        key_type: The provider type (openai, dashscope).
+        provider: The provider name (openai, dashscope, deepseek, etc.).
         db: Database session.
         prefer_default: Whether to prefer the default key.
 
     Returns:
         The decrypted API key, or None if not found.
     """
-    key_type = key_type.lower()
+    provider = provider.lower()
 
     if prefer_default:
         # Try to get the default key first
         result = await db.execute(
             select(APIKey).where(
                 APIKey.user_id == user_id,
-                APIKey.key_type == key_type,
+                APIKey.provider == provider,
                 APIKey.is_default == True
             )
         )
@@ -197,11 +200,11 @@ async def get_user_api_key(
         if api_key:
             return decrypt_api_key(api_key.key_encrypted)
 
-    # Get any key for this type
+    # Get any key for this provider
     result = await db.execute(
         select(APIKey).where(
             APIKey.user_id == user_id,
-            APIKey.key_type == key_type
+            APIKey.provider == provider
         )
     )
     api_key = result.scalar_one_or_none()
@@ -210,3 +213,49 @@ async def get_user_api_key(
         return decrypt_api_key(api_key.key_encrypted)
 
     return None
+
+
+async def get_user_api_key_config(
+    user_id: int,
+    provider: str,
+    db: AsyncSession,
+    prefer_default: bool = True,
+) -> dict | None:
+    """Get a user's complete API key configuration for a specific provider.
+
+    This is a helper function for internal use (not an endpoint).
+    Returns the full config including base_url, model, format_type, etc.
+
+    Args:
+        user_id: The user ID.
+        provider: The provider name (openai, dashscope, deepseek, etc.).
+        db: Database session.
+        prefer_default: Whether to prefer the default key.
+
+    Returns:
+        Dictionary with api_key, provider, base_url, model, format_type, etc., or None if not found.
+    """
+    provider = provider.lower()
+
+    query = select(APIKey).where(
+        APIKey.user_id == user_id,
+        APIKey.provider == provider
+    )
+
+    if prefer_default:
+        query = query.order_by(APIKey.is_default.desc())
+
+    result = await db.execute(query)
+    api_key = result.scalar_one_or_none()
+
+    if not api_key:
+        return None
+
+    return {
+        "api_key": decrypt_api_key(api_key.key_encrypted),
+        "provider": api_key.provider,
+        "base_url": api_key.base_url,
+        "model": api_key.model,
+        "format_type": api_key.format_type,
+        "is_default": api_key.is_default,
+    }

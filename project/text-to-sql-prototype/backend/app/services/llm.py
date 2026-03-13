@@ -1,4 +1,4 @@
-"""LLM service clients for OpenAI and DashScope APIs."""
+"""LLM service clients for various LLM providers."""
 from abc import ABC, abstractmethod
 from typing import Any, AsyncGenerator, Dict, Optional
 
@@ -6,7 +6,6 @@ import httpx
 from openai import AsyncOpenAI
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from app.core.config import settings
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -61,7 +60,15 @@ class BaseLLMClient(ABC):
 
 
 class OpenAIClient(BaseLLMClient):
-    """OpenAI API client."""
+    """OpenAI-compatible API client.
+
+    Supports any provider that uses the OpenAI API format:
+    - OpenAI
+    - DeepSeek
+    - DashScope (Alibaba)
+    - vLLM
+    - Any other OpenAI-compatible service
+    """
 
     def __init__(
         self,
@@ -69,11 +76,11 @@ class OpenAIClient(BaseLLMClient):
         base_url: Optional[str] = None,
         default_model: str = "gpt-3.5-turbo",
     ):
-        """Initialize the OpenAI client.
+        """Initialize the OpenAI-compatible client.
 
         Args:
-            api_key: The OpenAI API key.
-            base_url: Optional custom base URL (for proxy or compatible APIs).
+            api_key: The API key.
+            base_url: Optional custom base URL.
             default_model: Default model to use.
         """
         super().__init__(api_key, base_url)
@@ -101,12 +108,12 @@ class OpenAIClient(BaseLLMClient):
         prompt: str,
         model_config: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """Generate text using OpenAI API.
+        """Generate text using OpenAI-compatible API.
 
         Args:
             prompt: The input prompt.
             model_config: Optional configuration including:
-                - model: Model name (default: gpt-3.5-turbo)
+                - model: Model name
                 - temperature: Sampling temperature (default: 0.7)
                 - max_tokens: Maximum tokens (default: 2000)
                 - top_p: Nucleus sampling parameter
@@ -125,7 +132,7 @@ class OpenAIClient(BaseLLMClient):
         max_tokens = config.get("max_tokens", 2000)
 
         try:
-            logger.debug(f"Calling OpenAI API with model: {model}")
+            logger.debug(f"Calling OpenAI-compatible API with model: {model}")
 
             messages = [{"role": "user", "content": prompt}]
 
@@ -140,11 +147,11 @@ class OpenAIClient(BaseLLMClient):
             )
 
             result = response.choices[0].message.content
-            logger.debug(f"OpenAI API response received, tokens used: {response.usage.total_tokens if response.usage else 'N/A'}")
+            logger.debug(f"OpenAI-compatible API response received, tokens used: {response.usage.total_tokens if response.usage else 'N/A'}")
             return result
 
         except Exception as e:
-            logger.error(f"OpenAI API error: {str(e)}")
+            logger.error(f"OpenAI-compatible API error: {str(e)}")
             raise
 
     @retry(
@@ -162,7 +169,7 @@ class OpenAIClient(BaseLLMClient):
         prompt: str,
         model_config: Optional[Dict[str, Any]] = None,
     ) -> AsyncGenerator[str, None]:
-        """Generate text using OpenAI API with streaming.
+        """Generate text using OpenAI-compatible API with streaming.
 
         Args:
             prompt: The input prompt.
@@ -177,7 +184,7 @@ class OpenAIClient(BaseLLMClient):
         max_tokens = config.get("max_tokens", 2000)
 
         try:
-            logger.debug(f"Calling OpenAI API with streaming, model: {model}")
+            logger.debug(f"Calling OpenAI-compatible API with streaming, model: {model}")
 
             messages = [{"role": "user", "content": prompt}]
 
@@ -195,15 +202,18 @@ class OpenAIClient(BaseLLMClient):
                     yield chunk.choices[0].delta.content
 
         except Exception as e:
-            logger.error(f"OpenAI API streaming error: {str(e)}")
+            logger.error(f"OpenAI-compatible API streaming error: {str(e)}")
             raise
 
 
-class DashScopeClient(BaseLLMClient):
-    """Alibaba DashScope API client (OpenAI-compatible mode)."""
+class AnthropicClient(BaseLLMClient):
+    """Anthropic Claude API client.
 
-    DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    DEFAULT_MODEL = "qwen2.5-coder-32b-instruct"
+    Uses the Anthropic Messages API format.
+    """
+
+    DEFAULT_BASE_URL = "https://api.anthropic.com"
+    DEFAULT_MODEL = "claude-3-sonnet-20240229"
 
     def __init__(
         self,
@@ -211,21 +221,15 @@ class DashScopeClient(BaseLLMClient):
         base_url: Optional[str] = None,
         default_model: str = DEFAULT_MODEL,
     ):
-        """Initialize the DashScope client.
+        """Initialize the Anthropic client.
 
         Args:
-            api_key: The DashScope API key.
+            api_key: The Anthropic API key.
             base_url: Optional custom base URL.
             default_model: Default model to use.
         """
         super().__init__(api_key, base_url or self.DEFAULT_BASE_URL)
         self.default_model = default_model
-
-        # DashScope uses OpenAI-compatible API
-        self.client = AsyncOpenAI(
-            api_key=api_key,
-            base_url=self.base_url,
-        )
 
     @retry(
         retry=retry_if_exception_type((
@@ -242,22 +246,17 @@ class DashScopeClient(BaseLLMClient):
         prompt: str,
         model_config: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """Generate text using DashScope API.
+        """Generate text using Anthropic API.
 
         Args:
             prompt: The input prompt.
             model_config: Optional configuration including:
-                - model: Model name (default: qwen2.5-coder-32b-instruct)
+                - model: Model name (default: claude-3-sonnet-20240229)
                 - temperature: Sampling temperature (default: 0.7)
                 - max_tokens: Maximum tokens (default: 2000)
-                - top_p: Nucleus sampling parameter
-                - repetition_penalty: Repetition penalty
 
         Returns:
             The generated text response.
-
-        Raises:
-            Exception: If the API call fails after retries.
         """
         config = model_config or {}
         model = config.get("model", self.default_model)
@@ -265,27 +264,41 @@ class DashScopeClient(BaseLLMClient):
         max_tokens = config.get("max_tokens", 2000)
 
         try:
-            logger.debug(f"Calling DashScope API with model: {model}")
+            logger.debug(f"Calling Anthropic API with model: {model}")
 
-            messages = [{"role": "user", "content": prompt}]
+            import httpx
+            async with httpx.AsyncClient() as client:
+                headers = {
+                    "x-api-key": self.api_key,
+                    "anthropic-version": "2023-06-01",
+                    "Content-Type": "application/json",
+                }
 
-            response = await self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                top_p=config.get("top_p"),
-                extra_body={
-                    "repetition_penalty": config.get("repetition_penalty"),
-                } if config.get("repetition_penalty") else None,
-            )
+                payload = {
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                }
 
-            result = response.choices[0].message.content
-            logger.debug(f"DashScope API response received")
-            return result
+                if config.get("top_p"):
+                    payload["top_p"] = config["top_p"]
+
+                response = await client.post(
+                    f"{self.base_url}/v1/messages",
+                    headers=headers,
+                    json=payload,
+                    timeout=60.0,
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                result = data["content"][0]["text"]
+                logger.debug(f"Anthropic API response received, usage: {data.get('usage', 'N/A')}")
+                return result
 
         except Exception as e:
-            logger.error(f"DashScope API error: {str(e)}")
+            logger.error(f"Anthropic API error: {str(e)}")
             raise
 
     @retry(
@@ -303,7 +316,7 @@ class DashScopeClient(BaseLLMClient):
         prompt: str,
         model_config: Optional[Dict[str, Any]] = None,
     ) -> AsyncGenerator[str, None]:
-        """Generate text using DashScope API with streaming.
+        """Generate text using Anthropic API with streaming.
 
         Args:
             prompt: The input prompt.
@@ -318,33 +331,63 @@ class DashScopeClient(BaseLLMClient):
         max_tokens = config.get("max_tokens", 2000)
 
         try:
-            logger.debug(f"Calling DashScope API with streaming, model: {model}")
+            logger.debug(f"Calling Anthropic API with streaming, model: {model}")
 
-            messages = [{"role": "user", "content": prompt}]
+            import httpx
+            async with httpx.AsyncClient() as client:
+                headers = {
+                    "x-api-key": self.api_key,
+                    "anthropic-version": "2023-06-01",
+                    "Content-Type": "application/json",
+                }
 
-            stream = await self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                top_p=config.get("top_p"),
-                stream=True,
-            )
+                payload = {
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                    "stream": True,
+                }
 
-            async for chunk in stream:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+                if config.get("top_p"):
+                    payload["top_p"] = config["top_p"]
+
+                async with client.stream(
+                    "POST",
+                    f"{self.base_url}/v1/messages",
+                    headers=headers,
+                    json=payload,
+                    timeout=60.0,
+                ) as response:
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            data_str = line[6:]
+                            if data_str == "[DONE]":
+                                break
+                            try:
+                                import json
+                                data = json.loads(data_str)
+                                if data.get("type") == "content_block_delta":
+                                    delta = data.get("delta", {})
+                                    if delta.get("text"):
+                                        yield delta["text"]
+                            except json.JSONDecodeError:
+                                continue
 
         except Exception as e:
-            logger.error(f"DashScope API streaming error: {str(e)}")
+            logger.error(f"Anthropic API streaming error: {str(e)}")
             raise
 
 
-class DeepSeekClient(BaseLLMClient):
-    """DeepSeek API client (OpenAI-compatible mode)."""
+class VLLMClient(OpenAIClient):
+    """vLLM API client.
 
-    DEFAULT_BASE_URL = "https://api.deepseek.com"
-    DEFAULT_MODEL = "deepseek-chat"
+    vLLM uses OpenAI-compatible API format, so we extend OpenAIClient
+    with vLLM-specific defaults and behaviors.
+    """
+
+    DEFAULT_MODEL = "meta-llama/Llama-2-7b-chat-hf"
 
     def __init__(
         self,
@@ -352,182 +395,86 @@ class DeepSeekClient(BaseLLMClient):
         base_url: Optional[str] = None,
         default_model: str = DEFAULT_MODEL,
     ):
-        """Initialize the DeepSeek client.
+        """Initialize the vLLM client.
 
         Args:
-            api_key: The DeepSeek API key.
-            base_url: Optional custom base URL.
+            api_key: The API key (can be a placeholder for local vLLM).
+            base_url: The vLLM server base URL (required).
             default_model: Default model to use.
         """
-        super().__init__(api_key, base_url or self.DEFAULT_BASE_URL)
-        self.default_model = default_model
+        # vLLM typically runs locally without auth, but accepts any key format
+        super().__init__(api_key, base_url, default_model)
 
-        # DeepSeek uses OpenAI-compatible API
-        self.client = AsyncOpenAI(
-            api_key=api_key,
-            base_url=self.base_url,
-        )
-
-    @retry(
-        retry=retry_if_exception_type((
-            httpx.ConnectError,
-            httpx.TimeoutException,
-            httpx.HTTPStatusError,
-        )),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        reraise=True,
-    )
     async def generate(
         self,
         prompt: str,
         model_config: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """Generate text using DeepSeek API.
+        """Generate text using vLLM OpenAI-compatible API."""
+        logger.debug(f"Calling vLLM API with model: {self.default_model}")
+        return await super().generate(prompt, model_config)
 
-        Args:
-            prompt: The input prompt.
-            model_config: Optional configuration including:
-                - model: Model name (default: deepseek-chat)
-                - temperature: Sampling temperature (default: 0.7)
-                - max_tokens: Maximum tokens (default: 2000)
-                - top_p: Nucleus sampling parameter
-
-        Returns:
-            The generated text response.
-
-        Raises:
-            Exception: If the API call fails after retries.
-        """
-        config = model_config or {}
-        model = config.get("model", self.default_model)
-        temperature = config.get("temperature", 0.7)
-        max_tokens = config.get("max_tokens", 2000)
-
-        try:
-            logger.debug(f"Calling DeepSeek API with model: {model}")
-
-            messages = [{"role": "user", "content": prompt}]
-
-            response = await self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                top_p=config.get("top_p"),
-            )
-
-            result = response.choices[0].message.content
-            logger.debug(f"DeepSeek API response received")
-            return result
-
-        except Exception as e:
-            logger.error(f"DeepSeek API error: {str(e)}")
-            raise
-
-    @retry(
-        retry=retry_if_exception_type((
-            httpx.ConnectError,
-            httpx.TimeoutException,
-            httpx.HTTPStatusError,
-        )),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        reraise=True,
-    )
     async def generate_stream(
         self,
         prompt: str,
         model_config: Optional[Dict[str, Any]] = None,
     ) -> AsyncGenerator[str, None]:
-        """Generate text using DeepSeek API with streaming.
-
-        Args:
-            prompt: The input prompt.
-            model_config: Optional model configuration.
-
-        Yields:
-            Chunks of generated text.
-        """
-        config = model_config or {}
-        model = config.get("model", self.default_model)
-        temperature = config.get("temperature", 0.7)
-        max_tokens = config.get("max_tokens", 2000)
-
-        try:
-            logger.debug(f"Calling DeepSeek API with streaming, model: {model}")
-
-            messages = [{"role": "user", "content": prompt}]
-
-            stream = await self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                top_p=config.get("top_p"),
-                stream=True,
-            )
-
-            async for chunk in stream:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
-
-        except Exception as e:
-            logger.error(f"DeepSeek API streaming error: {str(e)}")
-            raise
+        """Generate text using vLLM API with streaming."""
+        logger.debug(f"Calling vLLM API with streaming, model: {self.default_model}")
+        async for chunk in super().generate_stream(prompt, model_config):
+            yield chunk
 
 
 def get_llm_client(
     provider: str,
-    api_key: Optional[str] = None,
+    api_key: str,
+    format_type: str = "openai",
     base_url: Optional[str] = None,
     model: Optional[str] = None,
 ) -> BaseLLMClient:
-    """Factory function to get the appropriate LLM client.
+    """Factory function to get LLM client based on format_type.
 
     Args:
-        provider: The LLM provider ('openai', 'dashscope', or 'deepseek').
-        api_key: Optional API key. If not provided, uses settings.
-        base_url: Optional base URL override.
-        model: Optional default model override.
+        provider: Provider name for display/logging (e.g., 'deepseek', 'openai').
+        api_key: The API key for authentication.
+        format_type: The API format type that determines the client class:
+            - 'openai': OpenAI-compatible format (OpenAI, DeepSeek, DashScope, etc.)
+            - 'anthropic': Anthropic Claude format
+            - 'vllm': vLLM OpenAI-compatible format
+        base_url: Optional custom base URL.
+        model: Optional default model name.
 
     Returns:
         An instance of the appropriate LLM client.
 
     Raises:
-        ValueError: If the provider is not supported or API key is missing.
+        ValueError: If the format_type is not supported or API key is missing.
     """
-    provider = provider.lower()
+    if not api_key:
+        raise ValueError(f"API key not provided for provider: {provider}")
 
-    if provider == "openai":
-        key = api_key or settings.openai_api_key
-        if not key:
-            raise ValueError("OpenAI API key not provided")
+    format_type = format_type.lower()
+
+    if format_type == "openai":
         return OpenAIClient(
-            api_key=key,
-            base_url=base_url or settings.openai_base_url,
-            default_model=model or settings.openai_model,
+            api_key=api_key,
+            base_url=base_url,
+            default_model=model or "gpt-3.5-turbo",
         )
-
-    elif provider == "dashscope":
-        key = api_key or settings.dashscope_api_key
-        if not key:
-            raise ValueError("DashScope API key not provided")
-        return DashScopeClient(
-            api_key=key,
-            base_url=base_url or settings.dashscope_base_url,
-            default_model=model or settings.dashscope_model,
+    elif format_type == "anthropic":
+        return AnthropicClient(
+            api_key=api_key,
+            base_url=base_url,
+            default_model=model or "claude-3-sonnet-20240229",
         )
-
-    elif provider == "deepseek":
-        key = api_key or settings.deepseek_api_key
-        if not key:
-            raise ValueError("DeepSeek API key not provided")
-        return DeepSeekClient(
-            api_key=key,
-            base_url=base_url or settings.deepseek_base_url,
-            default_model=model or settings.deepseek_model,
+    elif format_type == "vllm":
+        return VLLMClient(
+            api_key=api_key,
+            base_url=base_url,
+            default_model=model or "meta-llama/Llama-2-7b-chat-hf",
         )
-
     else:
-        raise ValueError(f"Unsupported LLM provider: {provider}")
+        raise ValueError(
+            f"Unsupported format_type: {format_type}. "
+            f"Must be one of: openai, anthropic, vllm"
+        )

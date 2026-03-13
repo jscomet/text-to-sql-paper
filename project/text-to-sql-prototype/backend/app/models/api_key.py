@@ -21,8 +21,14 @@ class APIKey(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False
     )
-    key_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    key_encrypted: Mapped[str] = mapped_column(nullable=False)
+    # Provider configuration
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)  # Provider: openai, dashscope, deepseek, etc.
+    key_encrypted: Mapped[str] = mapped_column(nullable=False)  # Encrypted API key
+    base_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # Custom base URL
+    model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # Model name
+    format_type: Mapped[str] = mapped_column(String(20), nullable=False, default="openai")  # Response format: openai, anthropic, vllm
+
+    # Metadata
     description: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
@@ -34,7 +40,8 @@ class APIKey(Base):
     # Indexes
     __table_args__ = (
         Index("ix_api_keys_user_id", "user_id"),
-        Index("ix_api_keys_key_type", "key_type"),
+        Index("ix_api_keys_provider", "provider"),
         Index("ix_api_keys_is_default", "is_default"),
         Index("ix_api_keys_user_default", "user_id", "is_default"),
+        Index("ix_api_keys_format_type", "format_type"),
     )

@@ -36,13 +36,20 @@ class Settings(BaseSettings):
 
     # LLM APIs - DashScope (Alibaba)
     dashscope_api_key: Optional[str] = None
-    dashscope_model: str = "qwen3.5-plus"
-    dashscope_base_url: str = "https://coding.dashscope.aliyuncs.com/v1"
+    dashscope_model: str = "qwen-plus"
+    dashscope_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
     # LLM APIs - DeepSeek
     deepseek_api_key: Optional[str] = None
     deepseek_model: str = "deepseek-chat"
-    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_base_url: str = "https://api.deepseek.com/v1"
+
+    # Generic OpenAI-compatible LLM Provider (simplified configuration)
+    llm_provider: str = "openai"        # Provider name for display
+    llm_base_url: Optional[str] = None  # API base URL
+    llm_api_key: Optional[str] = None   # API key
+    llm_model: str = "gpt-3.5-turbo"    # Default model
+    llm_format: str = "openai"          # Response format: openai | anthropic | vllm
 
     # API Key Encryption
     api_key_encryption_key: str = "your-encryption-key-change-in-production"
