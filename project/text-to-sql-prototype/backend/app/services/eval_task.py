@@ -34,9 +34,8 @@ class EvalTaskService:
             Created EvalTask object.
         """
         # Build model_config from schema fields
+        # Note: provider and model are now retrieved from APIKey in the API layer
         model_config = {
-            "provider": task_data.provider,
-            "model": task_data.model,
             "temperature": task_data.temperature,
             "max_tokens": task_data.max_tokens,
         }

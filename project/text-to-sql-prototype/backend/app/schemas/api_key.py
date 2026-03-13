@@ -73,8 +73,8 @@ class APIKeyResponse(BaseModel):
 
 class APIKeyListResponse(BaseModel):
     """Schema for list of API keys response."""
-    items: list[APIKeyResponse]
-    total: int
+    list: list[APIKeyResponse]
+    pagination: dict = {"page": 1, "page_size": 100, "total": 0, "total_pages": 0}
 
 
 class APIKeyDecryptRequest(BaseModel):

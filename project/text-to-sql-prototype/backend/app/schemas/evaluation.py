@@ -11,8 +11,7 @@ class EvalTaskCreate(BaseModel):
     dataset_type: str = Field(..., pattern="^(spider|bird|custom)$", description="Dataset type")
     dataset_path: Optional[str] = Field(None, max_length=500, description="Path to custom dataset")
     connection_id: int = Field(..., description="Database connection ID")
-    provider: str = Field(..., pattern="^(openai|dashscope)$", description="LLM provider")
-    model: Optional[str] = Field(None, description="Model name")
+    api_key_id: int = Field(..., description="API Key ID")
     temperature: float = Field(0.7, ge=0.0, le=2.0, description="Sampling temperature")
     max_tokens: int = Field(2000, ge=100, le=8000, description="Maximum tokens")
     eval_mode: str = Field("greedy_search", pattern="^(greedy_search|majority_vote)$", description="Evaluation mode")
@@ -34,7 +33,7 @@ class EvalTaskResponse(BaseModel):
     name: str
     dataset_type: str
     dataset_path: Optional[str]
-    model_settings: Dict[str, Any]
+    model_settings: Dict[str, Any] = Field(alias="model_config")
     eval_mode: str
     status: str
     progress_percent: int
@@ -50,12 +49,18 @@ class EvalTaskResponse(BaseModel):
     completed_at: Optional[datetime]
 
 
+class PaginationInfo(BaseModel):
+    """Pagination information."""
+    page: int
+    page_size: int
+    total: int
+    total_pages: int
+
+
 class EvalTaskListResponse(BaseModel):
     """Schema for evaluation task list response."""
-    items: List[EvalTaskResponse]
-    total: int
-    limit: int
-    offset: int
+    list: List[EvalTaskResponse]
+    pagination: PaginationInfo
 
 
 class EvalResultResponse(BaseModel):
@@ -78,10 +83,8 @@ class EvalResultResponse(BaseModel):
 
 class EvalResultListResponse(BaseModel):
     """Schema for evaluation result list response."""
-    items: List[EvalResultResponse]
-    total: int
-    limit: int
-    offset: int
+    list: List[EvalResultResponse]
+    pagination: PaginationInfo
 
 
 class EvalProgressResponse(BaseModel):

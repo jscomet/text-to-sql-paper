@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { ref, reactive, watch, computed } from 'vue'
+import { ref, reactive, watch, computed, onMounted } from 'vue'
 import { ElMessage, type FormInstance, type FormRules, type UploadFile } from 'element-plus'
-import type { Connection } from '@/types'
+import type { Connection, ApiKey } from '@/types'
+import { getApiKeys } from '@/api/apiKeys'
 
 interface FormData {
   name: string
   connection_id: number | undefined
   dataset_type: string
   dataset_file?: File
-  model_config: {
-    model: string
-    temperature: number
-  }
+  api_key_id: number | undefined
+  temperature: number
+  max_tokens: number | undefined
   eval_mode: string
 }
 
@@ -29,10 +29,9 @@ const emit = defineEmits<{
       connection_id: number
       dataset_type: string
       dataset_file?: File
-      model_config: {
-        model: string
-        temperature: number
-      }
+      api_key_id: number
+      temperature: number
+      max_tokens?: number
       eval_mode: string
     }
   ): void
@@ -45,12 +44,15 @@ const formData = reactive<FormData>({
   name: '',
   connection_id: undefined,
   dataset_type: 'spider',
-  model_config: {
-    model: 'gpt-4',
-    temperature: 0.0,
-  },
+  api_key_id: undefined,
+  temperature: 0.0,
+  max_tokens: undefined,
   eval_mode: 'greedy_search',
 })
+
+// API Keys 列表
+const apiKeys = ref<ApiKey[]>([])
+const loadingApiKeys = ref(false)
 
 // 上传的文件列表
 const fileList = ref<UploadFile[]>([])
@@ -65,15 +67,24 @@ const datasetOptions = [
   { value: 'custom', label: '自定义数据集' },
 ]
 
-// 模型选项
-const modelOptions = [
-  { value: 'gpt-4', label: 'GPT-4' },
-  { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-  { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
-  { value: 'claude-3-opus', label: 'Claude 3 Opus' },
-  { value: 'claude-3-sonnet', label: 'Claude 3 Sonnet' },
-  { value: 'claude-3-haiku', label: 'Claude 3 Haiku' },
-]
+// 加载 API Keys
+const loadApiKeys = async () => {
+  loadingApiKeys.value = true
+  try {
+    const res = await getApiKeys()
+    apiKeys.value = res.list || []
+    // 如果有默认的 API Key，自动选择
+    const defaultKey = apiKeys.value.find(key => key.is_default)
+    if (defaultKey) {
+      formData.api_key_id = defaultKey.id
+    }
+  } catch (error) {
+    console.error('加载 API Keys 失败:', error)
+    ElMessage.error('加载 API Keys 失败')
+  } finally {
+    loadingApiKeys.value = false
+  }
+}
 
 // 评测模式选项
 const evalModeOptions = [
@@ -94,6 +105,9 @@ const rules: FormRules = {
   dataset_type: [
     { required: true, message: '请选择数据集类型', trigger: 'change' },
   ],
+  api_key_id: [
+    { required: true, message: '请选择 API Key', trigger: 'change' },
+  ],
   eval_mode: [
     { required: true, message: '请选择评测模式', trigger: 'change' },
   ],
@@ -105,12 +119,13 @@ const dialogVisible = computed({
   set: (value) => emit('update:visible', value),
 })
 
-// 监听对话框显示状态，重置表单
+// 监听对话框显示状态，重置表单并加载 API Keys
 watch(
   () => props.visible,
   (newVal) => {
     if (newVal) {
       resetForm()
+      loadApiKeys()
     }
   }
 )
@@ -132,10 +147,9 @@ const resetForm = () => {
   formData.connection_id = undefined
   formData.dataset_type = 'spider'
   formData.dataset_file = undefined
-  formData.model_config = {
-    model: 'gpt-4',
-    temperature: 0.0,
-  }
+  formData.api_key_id = undefined
+  formData.temperature = 0.0
+  formData.max_tokens = undefined
   formData.eval_mode = 'greedy_search'
   fileList.value = []
   formRef.value?.resetFields()
@@ -190,10 +204,9 @@ const handleSubmit = async () => {
         connection_id: formData.connection_id as number,
         dataset_type: formData.dataset_type,
         dataset_file: formData.dataset_file,
-        model_config: {
-          model: formData.model_config.model,
-          temperature: formData.model_config.temperature,
-        },
+        api_key_id: formData.api_key_id as number,
+        temperature: formData.temperature,
+        max_tokens: formData.max_tokens,
         eval_mode: formData.eval_mode,
       })
     }
@@ -294,20 +307,32 @@ const handleCancel = () => {
         </el-upload>
       </el-form-item>
 
-      <!-- 模型选择 -->
-      <el-form-item label="模型">
+      <!-- API Key 选择 -->
+      <el-form-item label="API Key" prop="api_key_id">
         <el-select
-          v-model="formData.model_config.model"
-          placeholder="请选择模型"
+          v-model="formData.api_key_id"
+          placeholder="请选择 API Key"
           style="width: 100%"
+          clearable
+          :loading="loadingApiKeys"
         >
           <el-option
-            v-for="model in modelOptions"
-            :key="model.value"
-            :label="model.label"
-            :value="model.value"
-          />
+            v-for="key in apiKeys"
+            :key="key.id"
+            :label="key.name + (key.is_default ? ' (默认)' : '')"
+            :value="key.id"
+          >
+            <span>{{ key.name }}</span>
+            <span style="float: right; color: #8492a6; font-size: 13px">
+              {{ key.key_type }}
+            </span>
+          </el-option>
         </el-select>
+        <div v-if="apiKeys.length === 0 && !loadingApiKeys" class="api-key-hint">
+          <el-link type="primary" @click="$router.push('/settings')">
+            还没有 API Key，去设置页面添加
+          </el-link>
+        </div>
       </el-form-item>
 
       <!-- 评测模式 -->
@@ -330,7 +355,7 @@ const handleCancel = () => {
       <el-form-item label="Temperature">
         <div class="slider-wrapper">
           <el-slider
-            v-model="formData.model_config.temperature"
+            v-model="formData.temperature"
             :min="0"
             :max="2"
             :step="0.1"
@@ -344,6 +369,19 @@ const handleCancel = () => {
             <el-icon class="help-icon"><QuestionFilled /></el-icon>
           </el-tooltip>
         </div>
+      </el-form-item>
+
+      <!-- Max Tokens 输入 -->
+      <el-form-item label="Max Tokens">
+        <el-input-number
+          v-model="formData.max_tokens"
+          :min="1"
+          :max="8192"
+          :step="1"
+          placeholder="不限制"
+          style="width: 100%"
+        />
+        <div class="input-hint">留空表示不限制最大 token 数</div>
       </el-form-item>
 
       <!-- 提示信息 -->
@@ -402,6 +440,17 @@ const handleCancel = () => {
 }
 
 :deep(.el-upload__tip) {
+  color: #909399;
+  font-size: 12px;
+  margin-top: 5px;
+}
+
+.api-key-hint {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.input-hint {
   color: #909399;
   font-size: 12px;
   margin-top: 5px;

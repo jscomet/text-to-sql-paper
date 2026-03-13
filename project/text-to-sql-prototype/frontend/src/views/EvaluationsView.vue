@@ -108,15 +108,14 @@ const handleSubmit = async (formData: {
   connection_id: number
   dataset_type: string
   dataset_file?: File
-  model_config: {
-    model: string
-    temperature: number
-  }
+  api_key_id: number
+  temperature: number
+  max_tokens?: number
   eval_mode: string
 }) => {
   try {
     // 如果有文件上传，需要使用 FormData
-    let submitData: FormData | Record<string, unknown>
+    let submitData: FormData | CreateEvalTaskRequest
 
     if (formData.dataset_file) {
       submitData = new FormData()
@@ -124,19 +123,25 @@ const handleSubmit = async (formData: {
       submitData.append('connection_id', String(formData.connection_id))
       submitData.append('dataset_type', formData.dataset_type)
       submitData.append('dataset_file', formData.dataset_file)
-      submitData.append('model_config', JSON.stringify(formData.model_config))
+      submitData.append('api_key_id', String(formData.api_key_id))
+      submitData.append('temperature', String(formData.temperature))
+      if (formData.max_tokens) {
+        submitData.append('max_tokens', String(formData.max_tokens))
+      }
       submitData.append('eval_mode', formData.eval_mode)
     } else {
       submitData = {
         name: formData.name,
         connection_id: formData.connection_id,
-        dataset_type: formData.dataset_type,
-        model_config: formData.model_config,
-        eval_mode: formData.eval_mode,
+        dataset_type: formData.dataset_type as 'bird' | 'spider' | 'custom',
+        api_key_id: formData.api_key_id,
+        temperature: formData.temperature,
+        max_tokens: formData.max_tokens,
+        eval_mode: formData.eval_mode as 'greedy_search' | 'major_voting' | 'pass@k',
       }
     }
 
-    await createEvalTask(submitData as unknown as CreateEvalTaskRequest)
+    await createEvalTask(submitData as CreateEvalTaskRequest)
     ElMessage.success('评测任务创建成功')
     dialogVisible.value = false
     loadTasks()

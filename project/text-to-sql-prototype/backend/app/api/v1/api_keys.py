@@ -51,7 +51,10 @@ async def list_api_keys(
         for key in api_keys
     ]
 
-    return APIKeyListResponse(items=items, total=len(items))
+    return APIKeyListResponse(
+        list=items,
+        pagination={"page": 1, "page_size": len(items), "total": len(items), "total_pages": 1},
+    )
 
 
 @router.post("", response_model=APIKeyResponse, status_code=status.HTTP_201_CREATED)
@@ -258,4 +261,42 @@ async def get_user_api_key_config(
         "model": api_key.model,
         "format_type": api_key.format_type,
         "is_default": api_key.is_default,
+    }
+
+
+async def get_user_api_key_by_id(
+    user_id: int,
+    key_id: int,
+    db: AsyncSession,
+) -> dict | None:
+    """Get a user's API key configuration by key ID.
+
+    This is a helper function for internal use (not an endpoint).
+    Used by evaluation tasks to get API key configuration.
+
+    Args:
+        user_id: The user ID.
+        key_id: The API key ID.
+        db: Database session.
+
+    Returns:
+        Dictionary with api_key, provider, base_url, model, format_type, or None if not found.
+    """
+    result = await db.execute(
+        select(APIKey).where(
+            APIKey.id == key_id,
+            APIKey.user_id == user_id,
+        )
+    )
+    api_key = result.scalar_one_or_none()
+
+    if not api_key:
+        return None
+
+    return {
+        "api_key": decrypt_api_key(api_key.key_encrypted),
+        "provider": api_key.provider,
+        "base_url": api_key.base_url,
+        "model": api_key.model,
+        "format_type": api_key.format_type,
     }

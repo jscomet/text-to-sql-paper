@@ -20,7 +20,9 @@ from app.schemas.evaluation import (
     EvalTaskListResponse,
     EvalTaskResponse,
     EvalTaskUpdate,
+    PaginationInfo,
 )
+from app.api.v1.api_keys import get_user_api_key_by_id
 from app.services.eval_task import EvalTaskService
 from app.tasks.eval_tasks import run_evaluation_task
 
@@ -46,10 +48,22 @@ async def create_eval_task(
     Returns:
         Created task details.
     """
+    # Get API key configuration
+    api_key_config = await get_user_api_key_by_id(
+        user_id=current_user.id,
+        key_id=request.api_key_id,
+        db=db,
+    )
+
+    if not api_key_config:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid API key ID",
+        )
+
     # Build model config
     model_config = {
-        "provider": request.provider,
-        "model": request.model,
+        "model": api_key_config["model"],
         "temperature": request.temperature,
         "max_tokens": request.max_tokens,
     }
@@ -60,8 +74,7 @@ async def create_eval_task(
         dataset_type=request.dataset_type,
         dataset_path=request.dataset_path,
         connection_id=request.connection_id,
-        provider=request.provider,
-        model=request.model,
+        api_key_id=request.api_key_id,
         temperature=request.temperature,
         max_tokens=request.max_tokens,
         eval_mode=request.eval_mode,
@@ -82,10 +95,13 @@ async def create_eval_task(
         user_id=current_user.id,
         connection_id=request.connection_id,
         dataset_path=request.dataset_path,
-        provider=request.provider,
+        provider=api_key_config["provider"],
         model_config=model_config,
         eval_mode=request.eval_mode,
         vote_count=request.vote_count,
+        api_key=api_key_config["api_key"],
+        format_type=api_key_config["format_type"],
+        base_url=api_key_config.get("base_url"),
     )
 
     logger.info(f"Created and started eval task {task.id} for user {current_user.id}")
@@ -94,8 +110,8 @@ async def create_eval_task(
 
 @router.get("/tasks", response_model=EvalTaskListResponse)
 async def list_eval_tasks(
-    skip: int = Query(0, ge=0, description="Number of tasks to skip"),
-    limit: int = Query(100, ge=1, le=1000, description="Maximum number of tasks"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(10, ge=1, le=1000, description="Page size"),
     status: Optional[str] = Query(None, description="Filter by status"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -103,8 +119,8 @@ async def list_eval_tasks(
     """List evaluation tasks for the current user.
 
     Args:
-        skip: Number of tasks to skip.
-        limit: Maximum number of tasks to return.
+        page: Page number (1-indexed).
+        page_size: Number of items per page.
         status: Optional status filter.
         db: Database session.
         current_user: Current authenticated user.
@@ -112,12 +128,14 @@ async def list_eval_tasks(
     Returns:
         List of evaluation tasks.
     """
+    skip = (page - 1) * page_size
+
     # Get tasks
     tasks = await EvalTaskService.list_eval_tasks(
         db=db,
         user_id=current_user.id,
         skip=skip,
-        limit=limit,
+        limit=page_size,
         status=status,
     )
 
@@ -129,11 +147,16 @@ async def list_eval_tasks(
     result = await db.execute(count_query)
     total = result.scalar() or 0
 
+    total_pages = (total + page_size - 1) // page_size if page_size > 0 else 0
+
     return EvalTaskListResponse(
-        items=[EvalTaskResponse.model_validate(t) for t in tasks],
-        total=total,
-        limit=limit,
-        offset=skip,
+        list=[EvalTaskResponse.model_validate(t) for t in tasks],
+        pagination=PaginationInfo(
+            page=page,
+            page_size=page_size,
+            total=total,
+            total_pages=total_pages,
+        ),
     )
 
 

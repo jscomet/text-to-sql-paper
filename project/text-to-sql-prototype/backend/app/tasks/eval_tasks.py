@@ -99,6 +99,8 @@ async def run_evaluation_task(
     model_config: Dict[str, Any],
     eval_mode: str = "greedy_search",
     vote_count: int = 5,
+    api_key: str = None,
+    format_type: str = None,
 ) -> None:
     """Run evaluation task in background.
 
@@ -111,6 +113,8 @@ async def run_evaluation_task(
         model_config: Model configuration.
         eval_mode: Evaluation mode (greedy_search or majority_vote).
         vote_count: Number of votes for majority voting.
+        api_key: The decrypted API key.
+        format_type: The format type for LLM client selection.
     """
     # Create async database engine and session
     engine = create_async_engine(
@@ -139,6 +143,8 @@ async def run_evaluation_task(
                 model_config=model_config,
                 eval_mode=eval_mode,
                 vote_count=vote_count,
+                api_key=api_key,
+                format_type=format_type,
             )
         except Exception as e:
             logger.error(f"Evaluation task {task_id} failed: {e}")
@@ -160,6 +166,8 @@ async def _run_evaluation(
     model_config: Dict[str, Any],
     eval_mode: str,
     vote_count: int,
+    api_key: str = None,
+    format_type: str = None,
 ) -> None:
     """Internal evaluation runner.
 
@@ -173,6 +181,8 @@ async def _run_evaluation(
         model_config: Model configuration.
         eval_mode: Evaluation mode.
         vote_count: Vote count for majority voting.
+        api_key: The decrypted API key.
+        format_type: The format type for LLM client selection.
     """
     # Get task
     task = await EvalTaskService.get_eval_task(db, task_id, user_id)
@@ -256,6 +266,9 @@ async def _run_evaluation(
                             provider=provider,
                             model_config=model_config,
                             dialect=connection.db_type,
+                            api_key=api_key,
+                            format_type=format_type,
+            
                         )
                         pred_sqls.append(sql)
 
@@ -273,6 +286,9 @@ async def _run_evaluation(
                         provider=provider,
                         model_config=model_config,
                         dialect=connection.db_type,
+                        api_key=api_key,
+                        format_type=format_type,
+        
                     )
 
                 # Compare results using EXCEPT

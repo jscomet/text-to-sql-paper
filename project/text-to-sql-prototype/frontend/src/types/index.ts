@@ -290,11 +290,9 @@ export interface CreateEvalTaskRequest {
   connection_id: number
   dataset_type: DatasetType
   dataset_path?: string
-  model_config?: {
-    model?: string
-    temperature?: number
-    [key: string]: unknown
-  }
+  api_key_id: number
+  temperature?: number
+  max_tokens?: number
   eval_mode?: EvalMode
   config?: {
     voting_count?: number
