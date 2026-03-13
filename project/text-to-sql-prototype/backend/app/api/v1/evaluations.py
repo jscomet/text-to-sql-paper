@@ -510,6 +510,8 @@ async def delete_eval_task(
 @router.post("/tasks/{parent_id}/start-all", response_model=dict)
 async def start_all_child_tasks(
     parent_id: int,
+    background_tasks: BackgroundTasks,
+    api_key_id: int = Query(..., description="API Key ID for LLM"),
     delay_seconds: int = Query(default=0, ge=0, description="Delay between starting tasks"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -518,7 +520,9 @@ async def start_all_child_tasks(
 
     Args:
         parent_id: Parent task ID.
+        api_key_id: API Key ID for LLM.
         delay_seconds: Delay between starting tasks in seconds.
+        background_tasks: FastAPI background tasks.
         db: Database session.
         current_user: Current authenticated user.
 
@@ -540,6 +544,19 @@ async def start_all_child_tasks(
             detail="Task is not a parent task",
         )
 
+    # Get API key configuration
+    api_key_config = await get_user_api_key_by_id(
+        user_id=current_user.id,
+        key_id=api_key_id,
+        db=db,
+    )
+
+    if not api_key_config:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid API key ID",
+        )
+
     # Get child tasks
     child_tasks = await EvalTaskService.get_child_tasks(db, parent_id, current_user.id)
 
@@ -552,14 +569,69 @@ async def start_all_child_tasks(
             detail="No pending child tasks to start",
         )
 
-    # TODO: Start tasks in background
-    # For now, just return the count
-    started_task_ids = [t.id for t in pending_tasks]
+    # Start each child task in background
+    started_task_ids = []
+    for task in pending_tasks:
+        # Build model config from task and api_key config
+        model_config = {
+            "model": api_key_config["model"],
+            "temperature": task.model_config.get("temperature", 0.7),
+            "max_tokens": task.model_config.get("max_tokens", 2000),
+        }
+
+        # Add inference config if present in task's model_config
+        inference_config = task.model_config.get("inference", {})
+        if inference_config:
+            model_config["inference"] = inference_config
+
+        # Get dataset path for this child task
+        # Child tasks use the db_id to form the dataset path
+        dataset_path = task.dataset_path
+        if dataset_path and task.db_id:
+            # For BIRD dataset, the dataset file is at dataset_path/db_id.json
+            import os
+
+            possible_paths = [
+                os.path.join(dataset_path, f"{task.db_id}.json"),
+                os.path.join(dataset_path, "dev.json"),
+                dataset_path,
+            ]
+            for path in possible_paths:
+                if os.path.exists(path):
+                    dataset_path = path
+                    break
+
+        # Add task to background tasks
+        background_tasks.add_task(
+            run_evaluation_task,
+            task_id=task.id,
+            user_id=current_user.id,
+            connection_id=task.connection_id,
+            dataset_path=dataset_path or parent.dataset_path,
+            provider=api_key_config["provider"],
+            model_config=model_config,
+            eval_mode=task.eval_mode,
+            api_key=api_key_config["api_key"],
+            format_type=api_key_config["format_type"],
+            base_url=api_key_config.get("base_url"),
+            # Advanced inference parameters from task config
+            sampling_count=task.sampling_count if task.eval_mode == "pass_at_k" else None,
+            max_iterations=task.max_iterations if task.eval_mode == "check_correct" else None,
+            correction_strategy=task.correction_strategy.get("strategy", "self_correction") if task.correction_strategy else None,
+            sampling_config=task.model_config.get("inference", {}).get("sampling_config") if task.eval_mode == "pass_at_k" else None,
+            correction_config=task.model_config.get("inference", {}).get("correction_config") if task.eval_mode == "check_correct" else None,
+        )
+
+        started_task_ids.append(task.id)
+
+    # Update parent task status to running
+    if started_task_ids:
+        await EvalTaskService.start_eval_task(db, parent)
 
     return {
         "success": True,
-        "message": f"Started {len(pending_tasks)} child tasks",
-        "started_count": len(pending_tasks),
+        "message": f"Started {len(started_task_ids)} child tasks",
+        "started_count": len(started_task_ids),
         "skipped_count": len(child_tasks) - len(pending_tasks),
         "started_tasks": started_task_ids,
     }
